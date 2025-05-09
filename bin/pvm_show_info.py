@@ -21,7 +21,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import sys
-
+import struct
 import pyvideomeg
 
 try:
@@ -42,7 +42,7 @@ except:
         sys.exit(1)
         
 if is_audio:
-    nsamples = len(af.raw_audio) / af.nchan / 2
+    nsamples = len(af.raw_audio) / af.nchan / struct.calcsize(af.format_string)
     wc_srate = (nsamples - (af.buf_sz/2/af.nchan)) * 1000. / (af.ts[-1] - af.ts[0])
     
     print('\n\n\n')
@@ -53,17 +53,9 @@ if is_audio:
     print('\tNumber of channels: %i' % af.nchan)
     print('\tNumber of samples: %i' % nsamples)
     print('\tTotal duration (estimated): %f seconds' % (nsamples / wc_srate))
-    print('\tBuffer size: %i frames' % (af.buf_sz / 2 / af.nchan))
+    print('\tBuffer size: %i frames' % (af.buf_sz / struct.calcsize(af.format_string) / af.nchan))
     print('\tFirst buffer time: %s' % pyvideomeg.ts2str(af.ts[0]))
     print('\tLast buffer time: %s' % pyvideomeg.ts2str(af.ts[-1]))
-    
-    if af.ver == 3:
-        print('\tSite ID: %i' % af.site_id)
-        
-        if af.is_sender:
-            print('\tThe file was recorded by the *sender* process')
-        else:
-            print('\tThe file was recorded by the *receiver* process')
     
     del(af)
 

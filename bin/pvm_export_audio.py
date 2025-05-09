@@ -43,5 +43,5 @@ for aud_file in sys.argv[1:]:
     aud_file = pyvideomeg.AudioData(aud_file)
     rate = aud_file.srate
     n_ch = aud_file.nchan
-    aud_file = np.frombuffer(aud_file.raw_audio, '<i2').reshape(-1, n_ch)
+    aud_file = np.frombuffer(aud_file.raw_audio, aud_file.format_string).reshape(-1, n_ch)
     wavfile.write(out_file, rate, aud_file)

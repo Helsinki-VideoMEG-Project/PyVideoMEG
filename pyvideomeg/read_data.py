@@ -20,42 +20,27 @@ import time
 import math
 import numpy
 
-_BYTES_PER_SAMPLE = 2   # for the audio data
-_DECODING_FORMAT = 'h'  # for the audio data
 _REGR_SEGM_LENGTH = 20  # seconds, should be integer
+
 
 class UnknownVersionError(Exception):
     pass
 
-def _read_attrib(data_file, ver):
+
+def _read_attrib(data_file):
     """
     Read data block attributes. If cannot read the attributes (EOF?), return
     -1 in ts
     """
-    if ver == 1:
-        attrib = data_file.read(12)
-        if len(attrib) == 12:
-            ts, sz = struct.unpack('QI', attrib)
-        else:
-            ts = -1
-            sz = -1
-        block_id = 0
-        total_sz = sz + 12
-        
-    elif ver == 2 or ver == 3:
-        attrib = data_file.read(20)
-        if len(attrib) == 20:
-            ts, block_id, sz = struct.unpack('QQI', attrib)
-        else:
-            ts = -1
-            block_id = 0
-            sz = -1
-        total_sz = sz + 20
-            
+    attrib = data_file.read(12)
+    if len(attrib) == 12:
+        ts, sz = struct.unpack('QI', attrib)
     else:
-        raise UnknownVersionError()
+        ts = -1
+        sz = -1
+    total_sz = sz + 12
         
-    return ts, block_id, sz, total_sz
+    return ts, sz, total_sz
     
     
 def ts2str(ts):
@@ -67,7 +52,8 @@ def ts2str(ts):
     yearstr = timestr[-4:len(timestr)]
     timestr = timestr[0:-5] + ('.%03i' % (ts % 1000)) + ' ' + yearstr
     return timestr
-    
+
+
 def repair_file(file_name, fixed_file_name):
     """
     Try to repair a corrupted audio or video file. Assume that the corruption
@@ -163,28 +149,24 @@ class AudioData:
     """
     To read an audio file initialize AudioData object with file name and get
     the data from the object's variables:
-        srate     - nominal sampling rate
-        nchan     - number of channels
-        ts        - buffers' timestamps
-        raw_audio - raw audio data
-        buf_sz    - buffer size (bytes)
+        srate           - nominal sampling rate
+        nchan           - number of channels
+        ts              - buffers' timestamps
+        raw_audio       - raw audio data
+        format_string   - format string for the audio data
+        buf_sz          - buffer size (bytes)
     """
     def __init__(self, file_name):
         data_file = open(file_name, 'rb')    
         assert(data_file.read(len('HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE')) == b'HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE')  # make sure the magic string is OK 
         self.ver = struct.unpack('I', data_file.read(4))[0]
         
-        if self.ver == 1 or self.ver == 2:        
-            self.site_id = -1
-            self.is_sender = -1            
-
-        elif self.ver == 3:
-            self.site_id, self.is_sender = struct.unpack('BB', data_file.read(2))
-            
-        else:
+        if self.ver != 0:
+            # Can only read version 0 for the time being
             raise UnknownVersionError()
             
         self.srate, self.nchan = struct.unpack('II', data_file.read(8))
+        self.format_string = data_file.read(2).decode('ascii')
         
         # get the size of the data part of the file
         begin_data = data_file.tell()
@@ -192,7 +174,7 @@ class AudioData:
         end_data = data_file.tell()
         data_file.seek(begin_data, 0)
         
-        ts, block_id, self.buf_sz, total_sz = _read_attrib(data_file, self.ver)
+        ts, self.buf_sz, total_sz = _read_attrib(data_file)
         data_file.seek(begin_data, 0)
 
         assert((end_data - begin_data) % total_sz == 0)
@@ -202,7 +184,7 @@ class AudioData:
         self.ts = numpy.zeros(n_chunks)
 
         for i in range(n_chunks):
-            ts, block_id, sz, cur_total_sz = _read_attrib(data_file, self.ver)
+            ts, sz, cur_total_sz = _read_attrib(data_file)
             assert(cur_total_sz == total_sz)
             self.raw_audio[self.buf_sz*i : self.buf_sz*(i+1)] = data_file.read(sz)
             self.ts[i] = ts
@@ -220,8 +202,9 @@ class AudioData:
         #------------------------------------------------------------------
         # Compute timestamps for all the audio samples
         #
+        bytes_per_sample = struct.calcsize(self.format_string)
         n_chunks = len(self.ts)
-        samp_per_buf = self.buf_sz // (self.nchan * _BYTES_PER_SAMPLE)
+        samp_per_buf = self.buf_sz // (self.nchan * bytes_per_sample)
         nsamp = samp_per_buf * n_chunks
         samps = numpy.arange(samp_per_buf-1, nsamp, samp_per_buf)
         
@@ -249,7 +232,7 @@ class AudioData:
         
         # NOTE: assuming the raw audio is interleaved
         for i in range(0, nsamp*self.nchan):
-            samp_val, = struct.unpack(_DECODING_FORMAT, self.raw_audio[i*_BYTES_PER_SAMPLE : (i+1)*_BYTES_PER_SAMPLE])
+            samp_val, = struct.unpack(self.format_string, self.raw_audio[i*bytes_per_sample : (i+1)*bytes_per_sample])
             audio[i % self.nchan, i // self.nchan] = samp_val
         
         return audio, audio_ts

@@ -1,7 +1,11 @@
 name: videomeg
 dependencies:
 - python>=3.8
+- ipykernel     # Needed for showing Jupyter Notebooks i VSCode
 - pillow
 - numpy
 - scipy
+- matplotlib
+- plotly
+- nbformat      # Needed by plotly
 - pip
