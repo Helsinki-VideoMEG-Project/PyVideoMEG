@@ -249,14 +249,8 @@ class VideoData:
         assert(self._file.read(len('HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE')) == b'HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE')  # make sure the magic string is OK 
         self.ver = struct.unpack('I', self._file.read(4))[0]
         
-        if self.ver == 1 or self.ver == 2:        
-            self.site_id = -1
-            self.is_sender = -1            
-
-        elif self.ver == 3:
-            self.site_id, self.is_sender = struct.unpack('BB', self._file.read(2))
-            
-        else:
+        if self.ver != 0:        
+            # Can only read version 0 for the time being
             raise UnknownVersionError()
             
         # get the file size
