@@ -263,7 +263,7 @@ class VideoData:
         self._frame_ptrs = []
 
         while self._file.tell() < end_data:     # we did not reach end of file
-            ts, block_id, sz, total_sz = _read_attrib(self._file, self.ver)
+            ts, sz, total_sz = _read_attrib(self._file)
             assert(ts != -1)
             self.ts = numpy.append(self.ts, ts)
             self._frame_ptrs.append((self._file.tell(), sz))
