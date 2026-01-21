@@ -1,0 +1,6 @@
+# Include LICENSE (required for source distributions)
+include LICENSE
+
+# Include bin/ scripts (loaded dynamically at runtime)
+recursive-include bin *.py
+

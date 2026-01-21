@@ -1,0 +1,96 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyvideomeg"
+version = "0.1.1"
+description = "Python tools for analyzing video-MEG recordings"
+readme = "README.md"
+license = {text = "GPL-3.0"}
+authors = [
+    {name = "VideoMEG contributors", email = "andrey.zhdanov@alumni.aalto.fi"}
+]
+maintainers = [
+    {name = "VideoMEG contributors", email = "andrey.zhdanov@alumni.aalto.fi"}
+]
+keywords = ["MEG", "video", "medical imaging", "neuroscience", "magnetoencephalography"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "pillow",
+    "scipy",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "black",
+    "ruff",
+]
+analysis = [
+    "matplotlib",
+    "plotly",
+    "mne",
+]
+all = [
+    "pyvideomeg[dev,analysis]",
+]
+
+[project.urls]
+Homepage = "https://github.com/Helsinki-VideoMEG-Project/PyVideoMEG"
+Repository = "https://github.com/Helsinki-VideoMEG-Project/PyVideoMEG"
+Issues = "https://github.com/Helsinki-VideoMEG-Project/PyVideoMEG/issues"
+
+[project.scripts]
+pvm_repack_audio = "pyvideomeg.scripts:pvm_repack_audio_main"
+pvm_show_info = "pyvideomeg.scripts:pvm_show_info_main"
+pvm_repair = "pyvideomeg.scripts:pvm_repair_main"
+pvm_export_audio = "pyvideomeg.scripts:pvm_export_audio_main"
+pvm_data_converter0_1 = "pyvideomeg.scripts:pvm_data_converter0_1_main"
+pvm_export_dragdrop = "pyvideomeg.scripts:pvm_export_dragdrop_main"
+pvm_merge = "pyvideomeg.scripts:pvm_merge_main"
+pvm_export = "pyvideomeg.scripts:pvm_export_main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pyvideomeg*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.txt", "*.md"]
+"pyvideomeg.fonts" = ["*.ttf"]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.black]
+line-length = 88
+target-version = ["py311", "py312"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
