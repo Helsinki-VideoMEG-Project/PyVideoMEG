@@ -1,4 +1,4 @@
-#!/usr/bin/python -tt
+#!/usr/bin/env python
 
 """
 Upgrade video or audio file format from version 0 to 1.
@@ -33,22 +33,35 @@ MAGIC_VIDEO_STR	= b'HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE'
 MAGIC_AUDIO_STR	= b'HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE'
 
 
-in_file = open(sys.argv[1], 'rb')
+def main():
+    in_file = open(sys.argv[1], 'rb')
 
-magic = in_file.read(17)
-if (magic != MAGIC_VIDEO_STR) and (magic != MAGIC_AUDIO_STR):
-    print('Not a valid Elekta video or audio file')
-    exit()
+    # Read the full magic string to determine file type (audio is longer, so read that first)
+    magic = in_file.read(len(MAGIC_AUDIO_STR))
+    if magic == MAGIC_AUDIO_STR:
+        # Already at correct position after reading audio magic
+        magic = MAGIC_AUDIO_STR
+    elif magic[:len(MAGIC_VIDEO_STR)] == MAGIC_VIDEO_STR:
+        # It's a video file, but we read one extra byte, so seek back
+        magic = MAGIC_VIDEO_STR
+        in_file.seek(len(MAGIC_VIDEO_STR))
+    else:
+        print('Not a valid Elekta video or audio file')
+        sys.exit(1)
 
-ver = struct.unpack('I', in_file.read(4))[0]
-if ver != 0:
-    print("Wrong file format version")
-    exit()
+    ver = struct.unpack('I', in_file.read(4))[0]
+    if ver != 0:
+        print("Wrong file format version")
+        sys.exit(1)
 
-out_file = open(sys.argv[1] + '.fixed', 'wb')
-out_file.write(magic)
-out_file.write(struct.pack('I', 1))
+    out_file = open(sys.argv[1] + '.fixed', 'wb')
+    out_file.write(magic)
+    out_file.write(struct.pack('I', 1))
 
-out_file.write(in_file.read())
-out_file.close()
-in_file.close()
+    out_file.write(in_file.read())
+    out_file.close()
+    in_file.close()
+
+
+if __name__ == '__main__':
+    main()

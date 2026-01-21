@@ -27,20 +27,32 @@ class UnknownVersionError(Exception):
     pass
 
 
-def _read_attrib(data_file):
+def _read_attrib(data_file, ver=None):
     """
     Read data block attributes. If cannot read the attributes (EOF?), return
     -1 in ts
+    
+    For versions 0, 1: reads 12 bytes (timestamp + size), returns (ts, None, sz, total_sz)
+    For versions 2, 3: reads 20 bytes (timestamp + block_id + size), returns (ts, block_id, sz, total_sz)
     """
-    attrib = data_file.read(12)
-    if len(attrib) == 12:
-        ts, sz = struct.unpack('QI', attrib)
+    if ver is None or ver in [0, 1]:
+        # Versions 0 and 1: timestamp (8 bytes) + size (4 bytes) = 12 bytes
+        attrib = data_file.read(12)
+        if len(attrib) == 12:
+            ts, sz = struct.unpack('QI', attrib)
+            total_sz = sz + 12
+            return ts, None, sz, total_sz
+        else:
+            return -1, None, -1, -1
     else:
-        ts = -1
-        sz = -1
-    total_sz = sz + 12
-        
-    return ts, sz, total_sz
+        # Versions 2 and 3: timestamp (8 bytes) + block_id (8 bytes) + size (4 bytes) = 20 bytes
+        attrib = data_file.read(20)
+        if len(attrib) == 20:
+            ts, block_id, sz = struct.unpack('QQI', attrib)
+            total_sz = sz + 20
+            return ts, block_id, sz, total_sz
+        else:
+            return -1, None, -1, -1
     
     
 def ts2str(ts):
@@ -75,17 +87,28 @@ def repair_file(file_name, fixed_file_name):
     
     # Read the file version
     ver = struct.unpack('I', inp_file.read(4))[0]
-    if ver < 1 or ver > 3:
+    if ver < 0 or ver > 3:
         raise UnknownVersionError()        
         
     if ver == 3:
         # Read site_id and is_sender data
         id_sender_data = inp_file.read(2)
         assert(len(id_sender_data) == 2)
+    else:
+        id_sender_data = None
         
     if is_audio:
         srate_nchan_data = inp_file.read(8)
         assert(len(srate_nchan_data) == 8)
+        if ver == 0:
+            # Version 0 audio files have a format string (2 bytes) after srate_nchan_data
+            format_string_data = inp_file.read(2)
+            assert(len(format_string_data) == 2)
+        else:
+            format_string_data = None
+    else:
+        srate_nchan_data = None
+        format_string_data = None
         
     # Get the file size
     begin_data = inp_file.tell()
@@ -119,6 +142,8 @@ def repair_file(file_name, fixed_file_name):
         
     if is_audio:
         out_file.write(srate_nchan_data)
+        if ver == 0:
+            out_file.write(format_string_data)
         
     out_file.write(buf)
         
@@ -174,7 +199,7 @@ class AudioData:
         end_data = data_file.tell()
         data_file.seek(begin_data, 0)
         
-        ts, self.buf_sz, total_sz = _read_attrib(data_file)
+        ts, _, self.buf_sz, total_sz = _read_attrib(data_file, 0)
         data_file.seek(begin_data, 0)
 
         assert((end_data - begin_data) % total_sz == 0)
@@ -184,7 +209,7 @@ class AudioData:
         self.ts = numpy.zeros(n_chunks)
 
         for i in range(n_chunks):
-            ts, sz, cur_total_sz = _read_attrib(data_file)
+            ts, _, sz, cur_total_sz = _read_attrib(data_file, 0)
             assert(cur_total_sz == total_sz)
             self.raw_audio[self.buf_sz*i : self.buf_sz*(i+1)] = data_file.read(sz)
             self.ts[i] = ts
@@ -263,7 +288,7 @@ class VideoData:
         self._frame_ptrs = []
 
         while self._file.tell() < end_data:     # we did not reach end of file
-            ts, sz, total_sz = _read_attrib(self._file)
+            ts, _, sz, total_sz = _read_attrib(self._file, 0)
             assert(ts != -1)
             self.ts = numpy.append(self.ts, ts)
             self._frame_ptrs.append((self._file.tell(), sz))

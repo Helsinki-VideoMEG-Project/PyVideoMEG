@@ -1,4 +1,4 @@
-#!/usr/bin/python -tt
+#!/usr/bin/env python
 
 """
 Export an audio file to a standard audio format. Requires scipy.
@@ -29,19 +29,29 @@ from os import path as op
 
 import pyvideomeg
 
-for aud_file in sys.argv[1:]:
-    if not op.isfile(aud_file):
-        raise IOError('file not found: %s' % aud_file)
-    if op.splitext(aud_file)[1] != '.aud':
-        raise ValueError('unknown extension "%s"' % op.splitext(aud_file)[1])
-    out_file = op.splitext(aud_file)[0] + '.wav'
-    if op.isfile(out_file):
-        print('Skipping, output file exists: %s' % out_file)
-        continue
-    print('Creating file: %s' % out_file)
-    sys.stdout.flush()
-    aud_file = pyvideomeg.AudioData(aud_file)
-    rate = aud_file.srate
-    n_ch = aud_file.nchan
-    aud_file = np.frombuffer(aud_file.raw_audio, aud_file.format_string).reshape(-1, n_ch)
-    wavfile.write(out_file, rate, aud_file)
+
+def main():
+    for aud_file in sys.argv[1:]:
+        if not op.isfile(aud_file):
+            raise IOError('file not found: %s' % aud_file)
+        if op.splitext(aud_file)[1] != '.aud':
+            raise ValueError('unknown extension "%s"' % op.splitext(aud_file)[1])
+        out_file = op.splitext(aud_file)[0] + '.wav'
+        if op.isfile(out_file):
+            print('Skipping, output file exists: %s' % out_file)
+            continue
+        try:
+            aud_data = pyvideomeg.AudioData(aud_file)
+        except pyvideomeg.UnknownVersionError:
+            print('The file %s has unknown version, skipping' % aud_file)
+            continue
+        print('Creating file: %s' % out_file)
+        sys.stdout.flush()
+        rate = aud_data.srate
+        n_ch = aud_data.nchan
+        aud_data = np.frombuffer(aud_data.raw_audio, aud_data.format_string).reshape(-1, n_ch)
+        wavfile.write(out_file, rate, aud_data)
+
+
+if __name__ == '__main__':
+    main()

@@ -1,4 +1,4 @@
-#!/usr/bin/python -tt
+#!/usr/bin/env python
 
 """
 Try to repair a damaged video or audio file. Assume that the damage is at the
@@ -27,4 +27,10 @@ import sys
 
 import pyvideomeg
 
-pyvideomeg.repair_file(sys.argv[1], sys.argv[2])
+
+def main():
+    pyvideomeg.repair_file(sys.argv[1], sys.argv[2])
+
+
+if __name__ == '__main__':
+    main()
