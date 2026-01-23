@@ -34,6 +34,7 @@ dependencies = [
     "numpy",
     "pillow",
     "scipy",
+    "ffmpeg-python",
 ]
 
 [project.optional-dependencies]

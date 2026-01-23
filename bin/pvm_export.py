@@ -2,7 +2,7 @@
 
 """
 Export a pair of video and audio files to a standard video format. Requires
-either ffmpeg or mencoder.
+ffmpeg.
 
 Usage: pvm_export video_file_name audio_file_name output_file_name. The audio
 file name is optional.
@@ -38,22 +38,10 @@ try:
 except ImportError:
     from io import BytesIO
 
+import ffmpeg
+
 import pyvideomeg
 from pyvideomeg.fonts import load_font, DEFAULT_FONT_SIZE
-
-
-def find_encoder():
-    """Find available video encoder (ffmpeg or mencoder)."""
-    for encoder in ['ffmpeg', 'mencoder']:
-        try:
-            subprocess.run([encoder, '-version'], 
-                         stdout=subprocess.DEVNULL, 
-                         stderr=subprocess.DEVNULL, 
-                         check=True)
-            return encoder
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            continue
-    return None
 
 
 def main():
@@ -81,38 +69,41 @@ def main():
         fps = len(vid_file.ts) / (float(vid_file.ts[-1] - vid_file.ts[0]) / 1000)
         print('FPS: %f' % fps)
 
-        encoder = find_encoder()
-        if encoder is None:
-            print('Error: Neither ffmpeg nor mencoder found. Please install one of them.')
-            shutil.rmtree(tmp_fldr)
-            del(vid_file)
-            sys.exit(1)
-
-        print('Using encoder: %s' % encoder)
-
         output_file = sys.argv[2]
+        pattern = '%s/%%08d.jpg' % tmp_fldr
 
-        if encoder == 'ffmpeg':
-            pattern = '%s/%%08d.jpg' % tmp_fldr
-            cmd = ['ffmpeg', '-y', '-framerate', str(fps), '-i', pattern,
-                   '-c:v', 'libx264', '-pix_fmt', 'yuv420p', output_file]
-            try:
-                result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                ret_code = result.returncode
-                if ret_code != 0:
-                    print('ffmpeg stderr output:')
-                    print(result.stderr)
-            except Exception as e:
-                print('Error running ffmpeg: %s' % e)
-                ret_code = 1
-        else:
-            vid_opts = 'mf://%s/*.jpg -mf type=jpg:fps=%f' % (tmp_fldr, fps)
-            cmd = 'mencoder %s -ovc lavc -lavcopts vcodec=msmpeg4v2 -nosound -o %s > %s 2>&1' % (
-                vid_opts, output_file, os.devnull)
-            ret_code = os.system(cmd)
+        # Determine output format from file extension
+        output_format = None
+        if output_file.lower().endswith('.avi') or output_file.lower().endswith('.avi.tmp'):
+            output_format = 'avi'
+        elif output_file.lower().endswith('.mp4'):
+            output_format = 'mp4'
+        elif output_file.lower().endswith('.mov'):
+            output_format = 'mov'
+
+        try:
+            output_args = {'vcodec': 'libx264', 'pix_fmt': 'yuv420p'}
+            if output_format:
+                output_args['f'] = output_format
+            
+            (
+                ffmpeg
+                .input(pattern, framerate=fps)
+                .output(output_file, **output_args)
+                .overwrite_output()
+                .run(quiet=True, capture_stderr=True)
+            )
+            ret_code = 0
+        except ffmpeg.Error as e:
+            print('Error running ffmpeg:')
+            print(e.stderr.decode() if e.stderr else str(e))
+            ret_code = 1
+        except Exception as e:
+            print('Error running ffmpeg: %s' % e)
+            ret_code = 1
 
         if ret_code != 0:
-            print('ERROR: Encoding failed with return code %i' % ret_code)
+            print('ERROR: Encoding failed')
             shutil.rmtree(tmp_fldr)
             del(vid_file)
             sys.exit(1)
@@ -174,61 +165,62 @@ def main():
     fixed_fps = fps * aud_file.srate / wc_srate      # correct for the difference between soundcard and computer clocks 
     print('nominal sampling rate is %i\nwall clock sampling rate is %f\nnumber of channels: %i\nfixed FPS: %f' % (aud_file.srate, wc_srate, aud_file.nchan, fixed_fps))
 
-    encoder = find_encoder()
-    if encoder is None:
-        print('Error: Neither ffmpeg nor mencoder found. Please install one of them.')
-        shutil.rmtree(tmp_fldr)
-        sys.exit(1)
-
-    print('Using encoder: %s' % encoder)
-
     output_file = sys.argv[3]
     audio_file = tmp_fldr + '/audio.raw'
+    pattern = '%s/%%08d.jpg' % tmp_fldr
 
-    if encoder == 'ffmpeg':
-        pattern = '%s/%%08d.jpg' % tmp_fldr
-        cmd = ['ffmpeg', '-y', 
-               '-framerate', str(fixed_fps),
-               '-i', pattern,
-               '-f', 's16le',
-               '-ar', str(aud_file.srate),
-               '-ac', str(aud_file.nchan),
-               '-i', audio_file,
-               '-c:v', 'libx264',
-               '-pix_fmt', 'yuv420p',
-               '-c:a', 'aac',
-               '-shortest',
-               output_file]
-        print('Executing ffmpeg command: %s' % ' '.join(cmd))
-        img_files = glob.glob('%s/*.jpg' % tmp_fldr)
-        print('Found %i image files in temp directory' % len(img_files))
-        if len(img_files) == 0:
-            print('ERROR: No image files found in temp directory %s' % tmp_fldr)
-            ret_code = 1
-        else:
-            try:
-                result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=300)
-                ret_code = result.returncode
-                if ret_code != 0:
-                    print('ffmpeg stderr output:')
-                    print(result.stderr)
-                    if result.stdout:
-                        print('ffmpeg stdout output:')
-                        print(result.stdout)
-            except subprocess.TimeoutExpired:
-                print('ERROR: ffmpeg command timed out after 300 seconds')
-                ret_code = 1
-            except Exception as e:
-                print('Error running ffmpeg: %s' % e)
-                ret_code = 1
+    # Determine output format from file extension
+    output_format = None
+    if output_file.lower().endswith('.avi') or output_file.lower().endswith('.avi.tmp'):
+        output_format = 'avi'
+    elif output_file.lower().endswith('.mp4'):
+        output_format = 'mp4'
+    elif output_file.lower().endswith('.mov'):
+        output_format = 'mov'
+
+    img_files = glob.glob('%s/*.jpg' % tmp_fldr)
+    print('Found %i image files in temp directory' % len(img_files))
+    if len(img_files) == 0:
+        print('ERROR: No image files found in temp directory %s' % tmp_fldr)
+        ret_code = 1
     else:
-        aud_opts = '-audiofile %s -audio-demuxer 20 -rawaudio rate=%i:channels=%i:samplesize=2' % (
-            audio_file, aud_file.srate, aud_file.nchan)
-        vid_opts = 'mf://%s/*.jpg -mf type=jpg:fps=%f' % (tmp_fldr, fixed_fps)
-        cmd = 'mencoder %s %s -ovc lavc -lavcopts vcodec=msmpeg4v2 -oac mp3lame -o %s > %s 2>&1' % (
-            vid_opts, aud_opts, output_file, os.devnull)
-        print('Executing mencoder command: %s' % cmd)
-        ret_code = os.system(cmd)
+        try:
+            video_input = ffmpeg.input(pattern, framerate=fixed_fps)
+            audio_input = ffmpeg.input(
+                audio_file,
+                format='s16le',
+                ar=aud_file.srate,
+                ac=aud_file.nchan
+            )
+            
+            output_args = {
+                'vcodec': 'libx264',
+                'pix_fmt': 'yuv420p',
+                'acodec': 'aac'
+            }
+            if output_format:
+                output_args['f'] = output_format
+            
+            (
+                ffmpeg
+                .output(
+                    video_input,
+                    audio_input,
+                    output_file,
+                    **output_args
+                )
+                .global_args('-shortest')
+                .overwrite_output()
+                .run(quiet=True, capture_stderr=True)
+            )
+            ret_code = 0
+        except ffmpeg.Error as e:
+            print('Error running ffmpeg:')
+            print(e.stderr.decode() if e.stderr else str(e))
+            ret_code = 1
+        except Exception as e:
+            print('Error running ffmpeg: %s' % e)
+            ret_code = 1
 
     if ret_code != 0:
         print('ERROR: Encoding failed with return code %i' % ret_code)

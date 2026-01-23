@@ -62,7 +62,7 @@ print(f"First frame: {pyvideomeg.ts2str(video.ts[0])}")
 PyVideoMEG includes several command-line utilities:
 
 - `pvm_show_info` - Display information about video/audio files (version, frame count, timestamps, etc.)
-- `pvm_export` - Export video-MEG recordings to standard video formats (MP4, AVI, etc.). Requires ffmpeg or mencoder.
+- `pvm_export` - Export video-MEG recordings to standard video formats (MP4, AVI, etc.). Requires ffmpeg.
 - `pvm_export_audio` - Export audio data to WAV format
 - `pvm_merge` - Merge two video files side-by-side into a single video file
 - `pvm_repair` - Repair corrupted video or audio files (assumes damage is at the end of the file)
@@ -107,18 +107,26 @@ See the example scripts and their corresponding shell scripts (`run_*.sh`) for u
 
 ## Requirements
 
-- Python >= 3.11
+### Prerequisites
+
+- **Python >= 3.11**
+- **ffmpeg** - Required for video export and merging. Install from [ffmpeg.org](https://ffmpeg.org/download.html) or via package manager:
+  - macOS: `brew install ffmpeg`
+  - Ubuntu/Debian: `sudo apt-get install ffmpeg`
+  - Windows: Download from [ffmpeg.org](https://ffmpeg.org/download.html)
+
+### Python Dependencies
+
 - NumPy
 - Pillow
 - SciPy
+- ffmpeg-python (automatically installed with the package)
 
-Optional:
+### Optional Dependencies
+
 - Matplotlib (for visualization and examples)
 - Plotly (for interactive plots)
 - MNE (for MEG data analysis in examples)
-
-**External tools** (for video export):
-- ffmpeg or mencoder (required for `pvm_export` and `pvm_merge` commands)
 
 ## License
 

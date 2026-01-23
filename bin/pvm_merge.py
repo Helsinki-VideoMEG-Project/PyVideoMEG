@@ -2,7 +2,7 @@
 
 """
 Merge two video files into one (side-by-side) and export the result in a
-standard video format. Requires ffmpeg or mencoder.
+standard video format. Requires ffmpeg.
 
 Usage: pvm_merge video_file_name_1 video_file_name_2 output_file_name
 
@@ -36,22 +36,10 @@ except ImportError:
     from io import BytesIO
 
 import subprocess
+import ffmpeg
+
 import pyvideomeg
 from pyvideomeg.fonts import load_font, DEFAULT_FONT_SIZE
-
-MENCODER_LOG_FILE = '/dev/null'
-
-
-def find_encoder():
-    """Find available video encoder (ffmpeg or mencoder)."""
-    for encoder in ['ffmpeg', 'mencoder']:
-        try:
-            subprocess.run([encoder, '-version'], stdout=subprocess.DEVNULL, 
-                         stderr=subprocess.DEVNULL, check=True)
-            return encoder
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            continue
-    return None
 
 
 def main():
@@ -121,24 +109,28 @@ def main():
     fps = len(indx) / (float(vid_file_1.ts[i-1] - vid_file_1.ts[first_i]) / 1000)
     print('FPS: %f' % fps)
 
-    encoder = find_encoder()
-    if encoder is None:
-        print('Error: Neither ffmpeg nor mencoder found. Please install one of them.')
-        shutil.rmtree(tmp_fldr)
-        sys.exit(1)
+    pattern = '%s/%%08d.jpg' % tmp_fldr
+    output_file = sys.argv[3]
 
-    print('Using encoder: %s' % encoder)
+    try:
+        (
+            ffmpeg
+            .input(pattern, framerate=fps)
+            .output(output_file, vcodec='libx264', pix_fmt='yuv420p')
+            .overwrite_output()
+            .run(quiet=True, capture_stderr=True)
+        )
+        ret_code = 0
+    except ffmpeg.Error as e:
+        print('Error running ffmpeg:')
+        print(e.stderr.decode() if e.stderr else str(e))
+        ret_code = 1
+    except Exception as e:
+        print('Error running ffmpeg: %s' % e)
+        ret_code = 1
 
-    if encoder == 'ffmpeg':
-        cmd = 'ffmpeg -y -framerate %f -pattern_type glob -i "%s/*.jpg" -c:v libx264 -pix_fmt yuv420p "%s"' % (fps, tmp_fldr, sys.argv[3])
-    else:
-        vid_opts = 'mf://%s/*.jpg -mf type=jpg:fps=%f' % (tmp_fldr, fps)
-        cmd = 'mencoder %s -ovc lavc -lavcopts vcodec=msmpeg4v2 -nosound -o %s > %s' % (vid_opts, sys.argv[3], MENCODER_LOG_FILE)
-
-    print('Executing command \'%s\'' % cmd)
-    ret = os.system(cmd)
-    if ret != 0:
-        print('Error: %s command failed with return code %d' % (encoder, ret))
+    if ret_code != 0:
+        print('ERROR: Encoding failed')
         shutil.rmtree(tmp_fldr)
         sys.exit(1)
 
