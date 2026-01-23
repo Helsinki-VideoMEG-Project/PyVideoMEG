@@ -7,21 +7,7 @@ import sys
 import os
 from os import path as op
 import subprocess
-
-
-def find_encoder():
-    """Find available video encoder (ffmpeg or mencoder)."""
-    for encoder in ['ffmpeg', 'mencoder']:
-        try:
-            subprocess.run([encoder, '-version'], 
-                         stdout=subprocess.DEVNULL, 
-                         stderr=subprocess.DEVNULL, 
-                         check=True)
-            return encoder
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            continue
-    return None
-
+import ffmpeg
 
 def main():
     for vid_file in sys.argv[1:]:
@@ -42,20 +28,22 @@ def main():
             os.rename(avi_file + '.tmp', avi_file)
         mov_file = op.splitext(avi_file)[0] + '.mov'
         if not op.isfile(mov_file):
-            encoder = find_encoder()
-            if encoder is None:
-                print('Warning: Neither ffmpeg nor mencoder found. Skipping MOV conversion.')
+            try:
+                (
+                    ffmpeg
+                    .input(avi_file)
+                    .output(mov_file + '.tmp', vcodec='libx264', acodec='aac', f='mov')
+                    .overwrite_output()
+                    .run(quiet=True, capture_stderr=True)
+                )
+                os.rename(mov_file + '.tmp', mov_file)
+            except ffmpeg.Error as e:
+                print('Error converting to MOV:')
+                print(e.stderr.decode() if e.stderr else str(e))
                 continue
-
-            if encoder == 'ffmpeg':
-                subprocess.check_call(['ffmpeg', '-y', '-i', avi_file,
-                                       '-c:v', 'libx264', '-c:a', 'aac',
-                                       '-f', 'mov', mov_file + '.tmp'])
-            else:  # mencoder
-                subprocess.check_call(['mencoder', avi_file, '-oac', 'mp3lame',
-                                       '-ovc', 'x264', '-of', 'lavf', '-lavfopts',
-                                       'format=mov', '-o', mov_file + '.tmp'])
-            os.rename(mov_file + '.tmp', mov_file)
+            except Exception as e:
+                print('Error converting to MOV: %s' % e)
+                continue
 
 
 if __name__ == '__main__':
