@@ -23,7 +23,7 @@ def main():
             # Use the local script instead of installed command
             script_dir = op.dirname(op.abspath(__file__))
             export_script = op.join(script_dir, 'pvm_export.py')
-            cmd = ['python', export_script, vid_file, aud_file, avi_file + '.tmp']
+            cmd = [sys.executable, export_script, vid_file, aud_file, avi_file + '.tmp']
             subprocess.check_call(cmd)
             os.rename(avi_file + '.tmp', avi_file)
         mov_file = op.splitext(avi_file)[0] + '.mov'
@@ -32,7 +32,7 @@ def main():
                 (
                     ffmpeg
                     .input(avi_file)
-                    .output(mov_file + '.tmp', vcodec='libx264', acodec='aac', f='mov')
+                    .output(mov_file + '.tmp', vcodec='libx264', acodec='copy', f='mov')
                     .overwrite_output()
                     .run(quiet=True, capture_stderr=True)
                 )

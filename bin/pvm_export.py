@@ -31,6 +31,7 @@ import shutil
 import glob
 import numpy
 import subprocess
+import struct
 
 from PIL import Image, ImageDraw, ImageFont
 try:
@@ -42,6 +43,36 @@ import ffmpeg
 
 import pyvideomeg
 from pyvideomeg.fonts import load_font, DEFAULT_FONT_SIZE
+
+
+def get_ffmpeg_format(format_string):
+    """
+    Convert Python struct format string to ffmpeg audio format string.
+    
+    Args:
+        format_string: Python struct format code (e.g., 'h', 'i', 'f')
+    
+    Returns:
+        ffmpeg format string (e.g., 's16le', 's32le', 'f32le')
+    """
+    format_map = {
+        'b': 's8',       # signed char (1 byte)
+        'B': 'u8',       # unsigned char (1 byte)
+        'h': 's16le',    # signed short (2 bytes)
+        'H': 'u16le',    # unsigned short (2 bytes)
+        'i': 's32le',    # signed int (4 bytes)
+        'I': 'u32le',    # unsigned int (4 bytes)
+        'l': 's32le',    # signed long (4 bytes on most systems)
+        'L': 'u32le',    # unsigned long (4 bytes on most systems)
+        'f': 'f32le',    # float (4 bytes)
+        'd': 'f64le',    # double (8 bytes)
+    }
+    # Handle format strings that might have endianness prefix
+    clean_format = format_string.strip('<>=@!')
+    if clean_format in format_map:
+        return format_map[clean_format]
+    else:
+        raise ValueError(f"Unknown audio format string: {format_string}")
 
 
 def main():
@@ -161,9 +192,11 @@ def main():
     fps = video_frame_cnt / (float(vid_file.ts[last_vid_indx] - vid_file.ts[first_vid_indx]) / 1000)
     print('FPS: %f' % fps)
 
-    wc_srate = (audio_frame_cnt * aud_file.buf_sz / 2 / aud_file.nchan) / (float(aud_file.ts[last_aud_indx] - aud_file.ts[first_aud_indx]) / 1000)
+    # Get bytes per sample from the format string
+    bytes_per_sample = struct.calcsize(aud_file.format_string)
+    wc_srate = (audio_frame_cnt * aud_file.buf_sz / bytes_per_sample / aud_file.nchan) / (float(aud_file.ts[last_aud_indx] - aud_file.ts[first_aud_indx]) / 1000)
     fixed_fps = fps * aud_file.srate / wc_srate      # correct for the difference between soundcard and computer clocks 
-    print('nominal sampling rate is %i\nwall clock sampling rate is %f\nnumber of channels: %i\nfixed FPS: %f' % (aud_file.srate, wc_srate, aud_file.nchan, fixed_fps))
+    print('nominal sampling rate is %i\nwall clock sampling rate is %f\nnumber of channels: %i\nformat: %s\nfixed FPS: %f' % (aud_file.srate, wc_srate, aud_file.nchan, aud_file.format_string, fixed_fps))
 
     output_file = sys.argv[3]
     audio_file = tmp_fldr + '/audio.raw'
@@ -185,10 +218,14 @@ def main():
         ret_code = 1
     else:
         try:
+            # Get the ffmpeg format string from the audio file's format
+            ffmpeg_audio_format = get_ffmpeg_format(aud_file.format_string)
+            print('Using ffmpeg audio format: %s' % ffmpeg_audio_format)
+            
             video_input = ffmpeg.input(pattern, framerate=fixed_fps)
             audio_input = ffmpeg.input(
                 audio_file,
-                format='s16le',
+                format=ffmpeg_audio_format,
                 ar=aud_file.srate,
                 ac=aud_file.nchan
             )
