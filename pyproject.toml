@@ -9,10 +9,11 @@ description = "Python tools for analyzing video-MEG recordings"
 readme = "README.md"
 license = {text = "GPL-3.0"}
 authors = [
-    {name = "VideoMEG contributors", email = "andrey.zhdanov@alumni.aalto.fi"}
+    {name = "Andrey Zhdanov", email = "andrey.zhdanov@alumni.aalto.fi"},
+    {name = "Yu Tian", email = "yu.tian@aalto.fi"}
 ]
 maintainers = [
-    {name = "VideoMEG contributors", email = "andrey.zhdanov@alumni.aalto.fi"}
+    {name = "Andrey Zhdanov", email = "andrey.zhdanov@alumni.aalto.fi"}
 ]
 keywords = ["MEG", "video", "medical imaging", "neuroscience", "magnetoencephalography"]
 classifiers = [

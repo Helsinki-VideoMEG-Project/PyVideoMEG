@@ -46,7 +46,7 @@ def main():
         magic = MAGIC_VIDEO_STR
         in_file.seek(len(MAGIC_VIDEO_STR))
     else:
-        print('Not a valid Elekta video or audio file')
+        print('Not a valid Helsinki VideoMEG Project video or audio file')
         sys.exit(1)
 
     ver = struct.unpack('I', in_file.read(4))[0]

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-    Class-file for writing .video.dat files compatible with Elekta graph.
+    Class-file for writing .video.dat files compatible with the Helsinki VideoMEG project.
 
     Copyright (C) 2017 BioMag Laboratory, Helsinki University Central Hospital
 
@@ -47,7 +47,7 @@ class VideoFile(object):
                                  file_name)
         else:
             self._file = open(file_name, 'wb')
-            self._file.write(b'HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE')  # Elekta magic string
+            self._file.write(b'HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE')  # Magic string
 
             if ver == 1 or ver == 2:
                 self._file.write(struct.pack('I', ver))

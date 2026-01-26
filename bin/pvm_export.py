@@ -1,7 +1,9 @@
 #!/usr/bin/env python
+#!/usr/bin/env python
 
 """
 Export a pair of video and audio files to a standard video format. Requires
+ffmpeg.
 ffmpeg.
 
 Usage: pvm_export video_file_name audio_file_name output_file_name. The audio
@@ -29,6 +31,7 @@ import os
 import tempfile
 import shutil
 import glob
+import glob
 import numpy
 import subprocess
 import struct
@@ -38,6 +41,8 @@ try:
     from BytesIO import BytesIO
 except ImportError:
     from io import BytesIO
+
+import ffmpeg
 
 import ffmpeg
 
@@ -88,7 +93,69 @@ def main():
 
     # Load font using the bundled font utility
     fnt = load_font(DEFAULT_FONT_SIZE)
+    if len(sys.argv) < 3:
+        print('Usage: pvm_export video_file_name [audio_file_name] output_file_name')
+        print('  If audio_file_name is omitted, only video will be exported')
+        sys.exit(1)
 
+    vid_file = pyvideomeg.VideoData(sys.argv[1])
+
+    # Load font using the bundled font utility
+    fnt = load_font(DEFAULT_FONT_SIZE)
+
+    for i in range(len(vid_file.ts)):
+        img = Image.open(BytesIO(vid_file.get_frame(i)))
+        draw = ImageDraw.Draw(img)
+        draw.text((10,0), '%i  :  %s' % (vid_file.ts[i], pyvideomeg.ts2str(vid_file.ts[i])), font=fnt, fill='black')
+        img.save('%s/%08i.jpg' % (tmp_fldr, i))
+
+    if len(sys.argv) == 3:
+        print('No audio file is specified, using only the video')
+        fps = len(vid_file.ts) / (float(vid_file.ts[-1] - vid_file.ts[0]) / 1000)
+        print('FPS: %f' % fps)
+
+        output_file = sys.argv[2]
+        pattern = '%s/%%08d.jpg' % tmp_fldr
+
+        # Determine output format from file extension
+        output_format = None
+        if output_file.lower().endswith('.avi') or output_file.lower().endswith('.avi.tmp'):
+            output_format = 'avi'
+        elif output_file.lower().endswith('.mp4'):
+            output_format = 'mp4'
+        elif output_file.lower().endswith('.mov'):
+            output_format = 'mov'
+
+        try:
+            output_args = {'vcodec': 'libx264', 'pix_fmt': 'yuv420p'}
+            if output_format:
+                output_args['f'] = output_format
+            
+            (
+                ffmpeg
+                .input(pattern, framerate=fps)
+                .output(output_file, **output_args)
+                .overwrite_output()
+                .run(quiet=True, capture_stderr=True)
+            )
+            ret_code = 0
+        except ffmpeg.Error as e:
+            print('Error running ffmpeg:')
+            print(e.stderr.decode() if e.stderr else str(e))
+            ret_code = 1
+        except Exception as e:
+            print('Error running ffmpeg: %s' % e)
+            ret_code = 1
+
+        if ret_code != 0:
+            print('ERROR: Encoding failed')
+            shutil.rmtree(tmp_fldr)
+            del(vid_file)
+            sys.exit(1)
+
+        shutil.rmtree(tmp_fldr)
+        del(vid_file)
+        sys.exit(0)
     for i in range(len(vid_file.ts)):
         img = Image.open(BytesIO(vid_file.get_frame(i)))
         draw = ImageDraw.Draw(img)
@@ -185,10 +252,17 @@ def main():
     # compute some statistics
     video_frame_cnt = last_vid_indx - first_vid_indx + 1
     audio_frame_cnt = last_aud_indx - first_aud_indx + 1
+    # compute some statistics
+    video_frame_cnt = last_vid_indx - first_vid_indx + 1
+    audio_frame_cnt = last_aud_indx - first_aud_indx + 1
 
     print('Discarded %i video frames out of %i' % (len(vid_file.ts) - video_frame_cnt, len(vid_file.ts)))
     print('Discarded %i audio buffers out of %i' % (len(aud_file.ts) - audio_frame_cnt, len(aud_file.ts)))
+    print('Discarded %i video frames out of %i' % (len(vid_file.ts) - video_frame_cnt, len(vid_file.ts)))
+    print('Discarded %i audio buffers out of %i' % (len(aud_file.ts) - audio_frame_cnt, len(aud_file.ts)))
 
+    fps = video_frame_cnt / (float(vid_file.ts[last_vid_indx] - vid_file.ts[first_vid_indx]) / 1000)
+    print('FPS: %f' % fps)
     fps = video_frame_cnt / (float(vid_file.ts[last_vid_indx] - vid_file.ts[first_vid_indx]) / 1000)
     print('FPS: %f' % fps)
 
