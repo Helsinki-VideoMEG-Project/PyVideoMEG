@@ -1,9 +1,7 @@
 #!/usr/bin/env python
-#!/usr/bin/env python
 
 """
 Export a pair of video and audio files to a standard video format. Requires
-ffmpeg.
 ffmpeg.
 
 Usage: pvm_export video_file_name audio_file_name output_file_name. The audio
@@ -31,9 +29,7 @@ import os
 import tempfile
 import shutil
 import glob
-import glob
 import numpy
-import subprocess
 import struct
 
 from PIL import Image, ImageDraw, ImageFont
@@ -41,8 +37,6 @@ try:
     from BytesIO import BytesIO
 except ImportError:
     from io import BytesIO
-
-import ffmpeg
 
 import ffmpeg
 
@@ -61,18 +55,17 @@ def get_ffmpeg_format(format_string):
         ffmpeg format string (e.g., 's16le', 's32le', 'f32le')
     """
     format_map = {
-        'b': 's8',       # signed char (1 byte)
-        'B': 'u8',       # unsigned char (1 byte)
-        'h': 's16le',    # signed short (2 bytes)
-        'H': 'u16le',    # unsigned short (2 bytes)
-        'i': 's32le',    # signed int (4 bytes)
-        'I': 'u32le',    # unsigned int (4 bytes)
-        'l': 's32le',    # signed long (4 bytes on most systems)
-        'L': 'u32le',    # unsigned long (4 bytes on most systems)
-        'f': 'f32le',    # float (4 bytes)
-        'd': 'f64le',    # double (8 bytes)
+        'b': 's8',
+        'B': 'u8',
+        'h': 's16le',
+        'H': 'u16le',
+        'i': 's32le',
+        'I': 'u32le',
+        'l': 's32le',
+        'L': 'u32le',
+        'f': 'f32le',
+        'd': 'f64le',
     }
-    # Handle format strings that might have endianness prefix
     clean_format = format_string.strip('<>=@!')
     if clean_format in format_map:
         return format_map[clean_format]
@@ -90,17 +83,6 @@ def main():
         sys.exit(1)
 
     vid_file = pyvideomeg.VideoData(sys.argv[1])
-
-    # Load font using the bundled font utility
-    fnt = load_font(DEFAULT_FONT_SIZE)
-    if len(sys.argv) < 3:
-        print('Usage: pvm_export video_file_name [audio_file_name] output_file_name')
-        print('  If audio_file_name is omitted, only video will be exported')
-        sys.exit(1)
-
-    vid_file = pyvideomeg.VideoData(sys.argv[1])
-
-    # Load font using the bundled font utility
     fnt = load_font(DEFAULT_FONT_SIZE)
 
     for i in range(len(vid_file.ts)):
@@ -117,60 +99,6 @@ def main():
         output_file = sys.argv[2]
         pattern = '%s/%%08d.jpg' % tmp_fldr
 
-        # Determine output format from file extension
-        output_format = None
-        if output_file.lower().endswith('.avi') or output_file.lower().endswith('.avi.tmp'):
-            output_format = 'avi'
-        elif output_file.lower().endswith('.mp4'):
-            output_format = 'mp4'
-        elif output_file.lower().endswith('.mov'):
-            output_format = 'mov'
-
-        try:
-            output_args = {'vcodec': 'libx264', 'pix_fmt': 'yuv420p'}
-            if output_format:
-                output_args['f'] = output_format
-            
-            (
-                ffmpeg
-                .input(pattern, framerate=fps)
-                .output(output_file, **output_args)
-                .overwrite_output()
-                .run(quiet=True, capture_stderr=True)
-            )
-            ret_code = 0
-        except ffmpeg.Error as e:
-            print('Error running ffmpeg:')
-            print(e.stderr.decode() if e.stderr else str(e))
-            ret_code = 1
-        except Exception as e:
-            print('Error running ffmpeg: %s' % e)
-            ret_code = 1
-
-        if ret_code != 0:
-            print('ERROR: Encoding failed')
-            shutil.rmtree(tmp_fldr)
-            del(vid_file)
-            sys.exit(1)
-
-        shutil.rmtree(tmp_fldr)
-        del(vid_file)
-        sys.exit(0)
-    for i in range(len(vid_file.ts)):
-        img = Image.open(BytesIO(vid_file.get_frame(i)))
-        draw = ImageDraw.Draw(img)
-        draw.text((10,0), '%i  :  %s' % (vid_file.ts[i], pyvideomeg.ts2str(vid_file.ts[i])), font=fnt, fill='black')
-        img.save('%s/%08i.jpg' % (tmp_fldr, i))
-
-    if len(sys.argv) == 3:
-        print('No audio file is specified, using only the video')
-        fps = len(vid_file.ts) / (float(vid_file.ts[-1] - vid_file.ts[0]) / 1000)
-        print('FPS: %f' % fps)
-
-        output_file = sys.argv[2]
-        pattern = '%s/%%08d.jpg' % tmp_fldr
-
-        # Determine output format from file extension
         output_format = None
         if output_file.lower().endswith('.avi') or output_file.lower().endswith('.avi.tmp'):
             output_format = 'avi'
@@ -249,34 +177,25 @@ def main():
     out_file.write(aud_file.raw_audio[(first_aud_indx*aud_file.buf_sz) : ((last_aud_indx+1)*aud_file.buf_sz)])
     out_file.close()
 
-    # compute some statistics
-    video_frame_cnt = last_vid_indx - first_vid_indx + 1
-    audio_frame_cnt = last_aud_indx - first_aud_indx + 1
-    # compute some statistics
     video_frame_cnt = last_vid_indx - first_vid_indx + 1
     audio_frame_cnt = last_aud_indx - first_aud_indx + 1
 
     print('Discarded %i video frames out of %i' % (len(vid_file.ts) - video_frame_cnt, len(vid_file.ts)))
     print('Discarded %i audio buffers out of %i' % (len(aud_file.ts) - audio_frame_cnt, len(aud_file.ts)))
-    print('Discarded %i video frames out of %i' % (len(vid_file.ts) - video_frame_cnt, len(vid_file.ts)))
-    print('Discarded %i audio buffers out of %i' % (len(aud_file.ts) - audio_frame_cnt, len(aud_file.ts)))
 
-    fps = video_frame_cnt / (float(vid_file.ts[last_vid_indx] - vid_file.ts[first_vid_indx]) / 1000)
-    print('FPS: %f' % fps)
     fps = video_frame_cnt / (float(vid_file.ts[last_vid_indx] - vid_file.ts[first_vid_indx]) / 1000)
     print('FPS: %f' % fps)
 
     # Get bytes per sample from the format string
     bytes_per_sample = struct.calcsize(aud_file.format_string)
     wc_srate = (audio_frame_cnt * aud_file.buf_sz / bytes_per_sample / aud_file.nchan) / (float(aud_file.ts[last_aud_indx] - aud_file.ts[first_aud_indx]) / 1000)
-    fixed_fps = fps * aud_file.srate / wc_srate      # correct for the difference between soundcard and computer clocks 
+    fixed_fps = fps * aud_file.srate / wc_srate
     print('nominal sampling rate is %i\nwall clock sampling rate is %f\nnumber of channels: %i\nformat: %s\nfixed FPS: %f' % (aud_file.srate, wc_srate, aud_file.nchan, aud_file.format_string, fixed_fps))
 
     output_file = sys.argv[3]
     audio_file = tmp_fldr + '/audio.raw'
     pattern = '%s/%%08d.jpg' % tmp_fldr
 
-    # Determine output format from file extension
     output_format = None
     if output_file.lower().endswith('.avi') or output_file.lower().endswith('.avi.tmp'):
         output_format = 'avi'
@@ -292,7 +211,6 @@ def main():
         ret_code = 1
     else:
         try:
-            # Get the ffmpeg format string from the audio file's format
             ffmpeg_audio_format = get_ffmpeg_format(aud_file.format_string)
             print('Using ffmpeg audio format: %s' % ffmpeg_audio_format)
             
