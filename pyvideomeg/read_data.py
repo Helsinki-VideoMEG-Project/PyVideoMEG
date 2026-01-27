@@ -71,103 +71,95 @@ def repair_file(file_name, fixed_file_name):
     Try to repair a corrupted audio or video file. Assume that the corruption
     happened in the end of file, e.g. the file is valid until certain point
     """
-    inp_file = open(file_name, 'rb')   
-    is_audio = False
-    
-    ##---------------------------------------------------------------------
-    # Read the header
-    #
-    
-    # Check the magick string
-    if inp_file.read(len('HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE')) == b'HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE':
-        is_audio = True
-    else:        
-        inp_file.seek(0, 0)
-        assert(inp_file.read(len('HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE')) == b'HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE')
-    
-    # Read the file version
-    ver = struct.unpack('I', inp_file.read(4))[0]
-    if ver < 0 or ver > 3:
-        raise UnknownVersionError()        
+    with open(file_name, 'rb') as inp_file:
+        is_audio = False
         
-    if ver == 3:
-        # Read site_id and is_sender data
-        id_sender_data = inp_file.read(2)
-        assert(len(id_sender_data) == 2)
-    else:
-        id_sender_data = None
+        ##---------------------------------------------------------------------
+        # Read the header
+        #
         
-    if is_audio:
-        srate_nchan_data = inp_file.read(8)
-        assert(len(srate_nchan_data) == 8)
-        if ver == 0:
-            # Version 0 audio files have a format string (2 bytes) after srate_nchan_data
-            format_string_data = inp_file.read(2)
-            assert(len(format_string_data) == 2)
+        # Check the magick string
+        if inp_file.read(len('HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE')) == b'HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE':
+            is_audio = True
+        else:        
+            inp_file.seek(0, 0)
+            assert(inp_file.read(len('HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE')) == b'HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE')
+        
+        # Read the file version
+        ver = struct.unpack('I', inp_file.read(4))[0]
+        if ver > 3:
+            raise UnknownVersionError()        
+            
+        if ver == 3:
+            # Read site_id and is_sender data
+            id_sender_data = inp_file.read(2)
+            assert(len(id_sender_data) == 2)
         else:
+            id_sender_data = None
+            
+        if is_audio:
+            srate_nchan_data = inp_file.read(8)
+            assert(len(srate_nchan_data) == 8)
+            if ver == 0:
+                # Version 0 audio files have a format string (2 bytes) after srate_nchan_data
+                format_string_data = inp_file.read(2)
+                assert(len(format_string_data) == 2)
+            else:
+                format_string_data = None
+        else:
+            srate_nchan_data = None
             format_string_data = None
-    else:
-        srate_nchan_data = None
-        format_string_data = None
-        
-    # Get the file size
-    begin_data = inp_file.tell()
-    inp_file.seek(0, 2)
-    end_data = inp_file.tell()
-    inp_file.seek(begin_data, 0)  
+            
+        # Get the file size
+        begin_data = inp_file.tell()
+        inp_file.seek(0, 2)
+        end_data = inp_file.tell()
+        inp_file.seek(begin_data, 0)  
 
-    ##---------------------------------------------------------------------
-    # Read the first chunk
-    # 
-    ts, block_id, sz, total_sz = _read_attrib(inp_file, ver)
-    assert(ts != -1)
-    inp_file.seek(-(total_sz-sz), 1)
-    buf = inp_file.read(total_sz)
-    assert(len(buf) == total_sz)
-        
-    ##---------------------------------------------------------------------
-    # Recovered enough data, start writing the output file
-    #
-    out_file = open(fixed_file_name, 'wb')
-    
-    if is_audio:
-        out_file.write(b'HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE')
-    else:
-        out_file.write(b'HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE')
-        
-    out_file.write(struct.pack('I', ver))
-    
-    if ver == 3:
-        out_file.write(id_sender_data)
-        
-    if is_audio:
-        out_file.write(srate_nchan_data)
-        if ver == 0:
-            out_file.write(format_string_data)
-        
-    out_file.write(buf)
-        
-    ##---------------------------------------------------------------------
-    # Start copying the data
-    #
-    while inp_file.tell() < end_data:
-        ts, block_id, sz, cur_total_sz = _read_attrib(inp_file, ver)
-        if ts == -1 or (is_audio and cur_total_sz != total_sz):
-            inp_file.close()
-            out_file.close()
-            return
+        ##---------------------------------------------------------------------
+        # Read the first chunk
+        # 
+        ts, block_id, sz, total_sz = _read_attrib(inp_file, ver)
+        assert(ts != -1)
+        inp_file.seek(-(total_sz-sz), 1)
+        buf = inp_file.read(total_sz)
+        assert(len(buf) == total_sz)
             
-        inp_file.seek(-(cur_total_sz-sz), 1)
-        buf = inp_file.read(cur_total_sz)
-        if len(buf) != cur_total_sz:
-            inp_file.close()
-            out_file.close()
-            return
+        ##---------------------------------------------------------------------
+        # Recovered enough data, start writing the output file
+        #
+        with open(fixed_file_name, 'wb') as out_file:
+            if is_audio:
+                out_file.write(b'HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE')
+            else:
+                out_file.write(b'HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE')
+                
+            out_file.write(struct.pack('I', ver))
             
-        out_file.write(buf)
-  
-    inp_file.close()
-    out_file.close()
+            if ver == 3:
+                out_file.write(id_sender_data)
+                
+            if is_audio:
+                out_file.write(srate_nchan_data)
+                if ver == 0:
+                    out_file.write(format_string_data)
+                
+            out_file.write(buf)
+                
+            ##---------------------------------------------------------------------
+            # Start copying the data
+            #
+            while inp_file.tell() < end_data:
+                ts, block_id, sz, cur_total_sz = _read_attrib(inp_file, ver)
+                if ts == -1 or (is_audio and cur_total_sz != total_sz):
+                    return
+                    
+                inp_file.seek(-(cur_total_sz-sz), 1)
+                buf = inp_file.read(cur_total_sz)
+                if len(buf) != cur_total_sz:
+                    return
+                    
+                out_file.write(buf)
     
     
 class AudioData:
@@ -182,39 +174,37 @@ class AudioData:
         buf_sz          - buffer size (bytes)
     """
     def __init__(self, file_name):
-        data_file = open(file_name, 'rb')    
-        assert(data_file.read(len('HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE')) == b'HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE')  # make sure the magic string is OK 
-        self.ver = struct.unpack('I', data_file.read(4))[0]
-        
-        if self.ver != 0:
-            # Can only read version 0 for the time being
-            raise UnknownVersionError()
+        with open(file_name, 'rb') as data_file:
+            assert(data_file.read(len('HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE')) == b'HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE')  # make sure the magic string is OK 
+            self.ver = struct.unpack('I', data_file.read(4))[0]
             
-        self.srate, self.nchan = struct.unpack('II', data_file.read(8))
-        self.format_string = data_file.read(2).decode('ascii')
-        
-        # get the size of the data part of the file
-        begin_data = data_file.tell()
-        data_file.seek(0, 2)
-        end_data = data_file.tell()
-        data_file.seek(begin_data, 0)
-        
-        ts, _, self.buf_sz, total_sz = _read_attrib(data_file, 0)
-        data_file.seek(begin_data, 0)
+            if self.ver != 0:
+                # Can only read version 0 for the time being
+                raise UnknownVersionError()
+                
+            self.srate, self.nchan = struct.unpack('II', data_file.read(8))
+            self.format_string = data_file.read(2).decode('ascii').rstrip('\x00')
+            
+            # get the size of the data part of the file
+            begin_data = data_file.tell()
+            data_file.seek(0, 2)
+            end_data = data_file.tell()
+            data_file.seek(begin_data, 0)
+            
+            ts, _, self.buf_sz, total_sz = _read_attrib(data_file, 0)
+            data_file.seek(begin_data, 0)
 
-        assert((end_data - begin_data) % total_sz == 0)
-        
-        n_chunks = (end_data - begin_data) // total_sz        
-        self.raw_audio = bytearray(n_chunks * self.buf_sz)
-        self.ts = numpy.zeros(n_chunks)
+            assert((end_data - begin_data) % total_sz == 0)
+            
+            n_chunks = (end_data - begin_data) // total_sz        
+            self.raw_audio = bytearray(n_chunks * self.buf_sz)
+            self.ts = numpy.zeros(n_chunks)
 
-        for i in range(n_chunks):
-            ts, _, sz, cur_total_sz = _read_attrib(data_file, 0)
-            assert(cur_total_sz == total_sz)
-            self.raw_audio[self.buf_sz*i : self.buf_sz*(i+1)] = data_file.read(sz)
-            self.ts[i] = ts
-
-        data_file.close()
+            for i in range(n_chunks):
+                ts, _, sz, cur_total_sz = _read_attrib(data_file, 0)
+                assert(cur_total_sz == total_sz)
+                self.raw_audio[self.buf_sz*i : self.buf_sz*(i+1)] = data_file.read(sz)
+                self.ts[i] = ts
         
     def format_audio(self):
         """Return the formatted version or self.raw_audio.
@@ -251,14 +241,22 @@ class AudioData:
         print('AudioData: regression fit errors (abs): mean %f, median %f, max %f' % (errs.mean(), numpy.median(errs), errs.max()))
         
         #------------------------------------------------------------------
-        # Parse the raw audio data
+        # Parse the raw audio data using numpy for efficiency
         #
-        audio = numpy.zeros((self.nchan, nsamp))
+        # Map format string to numpy dtype
+        format_to_dtype = {
+            'b': numpy.int8, 'B': numpy.uint8,
+            'h': numpy.int16, 'H': numpy.uint16,
+            'i': numpy.int32, 'I': numpy.uint32,
+            'l': numpy.int32, 'L': numpy.uint32,
+            'f': numpy.float32, 'd': numpy.float64,
+        }
+        clean_format = self.format_string.lstrip('<>=@!')
+        dtype = format_to_dtype.get(clean_format, numpy.int16)
         
-        # NOTE: assuming the raw audio is interleaved
-        for i in range(0, nsamp*self.nchan):
-            samp_val, = struct.unpack(self.format_string, self.raw_audio[i*bytes_per_sample : (i+1)*bytes_per_sample])
-            audio[i % self.nchan, i // self.nchan] = samp_val
+        # Convert raw audio to numpy array and reshape (interleaved -> nchan x nsamp)
+        audio_flat = numpy.frombuffer(bytes(self.raw_audio), dtype=dtype)
+        audio = audio_flat.reshape(-1, self.nchan).T.astype(numpy.float64)
         
         return audio, audio_ts
         
@@ -271,34 +269,47 @@ class VideoData:
     """
     def __init__(self, file_name):
         self._file = open(file_name, 'rb')
-        assert(self._file.read(len('HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE')) == b'HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE')  # make sure the magic string is OK 
-        self.ver = struct.unpack('I', self._file.read(4))[0]
-        
-        if self.ver != 0:        
-            # Can only read version 0 for the time being
-            raise UnknownVersionError()
+        try:
+            assert(self._file.read(len('HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE')) == b'HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE')  # make sure the magic string is OK 
+            self.ver = struct.unpack('I', self._file.read(4))[0]
             
-        # get the file size
-        begin_data = self._file.tell()
-        self._file.seek(0, 2)
-        end_data = self._file.tell()
-        self._file.seek(begin_data, 0)
+            if self.ver != 0:        
+                # Can only read version 0 for the time being
+                raise UnknownVersionError()
+                
+            # get the file size
+            begin_data = self._file.tell()
+            self._file.seek(0, 2)
+            end_data = self._file.tell()
+            self._file.seek(begin_data, 0)
 
-        self.ts = numpy.array([])
-        self._frame_ptrs = []
+            # Pre-allocate lists for better performance
+            ts_list = []
+            self._frame_ptrs = []
 
-        while self._file.tell() < end_data:     # we did not reach end of file
-            ts, _, sz, total_sz = _read_attrib(self._file, 0)
-            assert(ts != -1)
-            self.ts = numpy.append(self.ts, ts)
-            self._frame_ptrs.append((self._file.tell(), sz))
-            assert(self._file.tell() + sz <= end_data)
-            self._file.seek(sz, 1)
+            while self._file.tell() < end_data:     # we did not reach end of file
+                ts, _, sz, total_sz = _read_attrib(self._file, 0)
+                assert(ts != -1)
+                ts_list.append(ts)
+                self._frame_ptrs.append((self._file.tell(), sz))
+                assert(self._file.tell() + sz <= end_data)
+                self._file.seek(sz, 1)
             
-        self.nframes = self.ts.size
+            self.ts = numpy.array(ts_list)
+            self.nframes = self.ts.size
+        except:
+            self._file.close()
+            raise
             
     def __del__(self):
-        self._file.close()
+        if hasattr(self, '_file'):
+            self._file.close()
+    
+    def close(self):
+        """Explicitly close the file handle."""
+        if hasattr(self, '_file') and self._file:
+            self._file.close()
+            self._file = None
         
     def get_frame(self, indx):
         """
@@ -314,14 +325,11 @@ class EvlData:
     Event-list holding Event-class data.
     Can be read from a .evl file with from_file method
     """
-    def __init__(self, source_file, events, start, end):
+    def __init__(self, source_file, events, start=0, end=0):
         self.source_file = source_file
         self._events = events
         self.rec_start = start
         self.rec_end = end
-
-    def __new__(cls, source_file, events):
-        return cls(source_file, events, 0, 0)
 
     @classmethod
     def from_file(cls, file_name):
@@ -331,38 +339,38 @@ class EvlData:
         :return: EvlData-class
         """
         print("Using Evl file: {0}".format(file_name))
-        f = open(file_name, 'r')
-        assert f.read(len("(videomeg::")) == "(videomeg::"
-        source_file = ""
-        events = []
+        with open(file_name, 'r') as f:
+            assert f.read(len("(videomeg::")) == "(videomeg::"
+            source_file = ""
+            events = []
 
-        read_events = False
-        rec_start = 0
-        rec_end = 0
-        # Only except to find source-file and events
-        for line in f:
-            if read_events:
-                if line[:2] == "))":
-                    read_events = False
-                else:
-                    # Expect form ((:time xxx) (:class :"yyy") (:length zzz) (:annotation "www"))
-                    stripped = line[3:-2]
-                    pieced = stripped.split(") (")
-                    time = pieced[0].rpartition(' ')[2]
-                    _class = pieced[1].rpartition(':')[2]
-                    length = pieced[2].rpartition(' ')[2]
-                    annotation = pieced[3].partition(" \"")[2][:-2]
-                    if annotation.lower() == "rec start":
-                        rec_start = float(time)
-                    elif annotation.lower() == "rec end":
-                        rec_end = float(time)
+            read_events = False
+            rec_start = 0
+            rec_end = 0
+            # Only except to find source-file and events
+            for line in f:
+                if read_events:
+                    if line[:2] == "))":
+                        read_events = False
                     else:
-                        events.append(Event(time, _class, length, annotation))
-            elif line.lstrip().startswith(":source-file"):
-                source_file = line.partition(" \"")[2][:-1]
-            elif line.lstrip().startswith(":events"):
-                read_events = True
-        return cls(source_file, events, rec_start, rec_end)
+                        # Expect form ((:time xxx) (:class :"yyy") (:length zzz) (:annotation "www"))
+                        stripped = line[3:-2]
+                        pieced = stripped.split(") (")
+                        time = pieced[0].rpartition(' ')[2]
+                        _class = pieced[1].rpartition(':')[2]
+                        length = pieced[2].rpartition(' ')[2]
+                        annotation = pieced[3].partition(" \"")[2][:-2]
+                        if annotation.lower() == "rec start":
+                            rec_start = float(time)
+                        elif annotation.lower() == "rec end":
+                            rec_end = float(time)
+                        else:
+                            events.append(Event(time, _class, length, annotation))
+                elif line.lstrip().startswith(":source-file"):
+                    source_file = line.partition(" \"")[2][:-1]
+                elif line.lstrip().startswith(":events"):
+                    read_events = True
+            return cls(source_file, events, rec_start, rec_end)
 
     def __len__(self):
         return len(self._events)
