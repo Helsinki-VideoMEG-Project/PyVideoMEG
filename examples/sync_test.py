@@ -195,6 +195,15 @@ def main():
     vid_file = pyvideomeg.VideoData(args.video)
     aud_file = pyvideomeg.AudioData(args.audio)
 
+    # Detect actual frame size from the video
+    if len(vid_file.ts) > 0:
+        first_frame = PIL.Image.open(io.BytesIO(vid_file.get_frame(0)))
+        FRAME_SZ = first_frame.size
+        print(f"Detected frame size: {FRAME_SZ[0]}x{FRAME_SZ[1]}")
+    else:
+        print("Error: Video has no frames.")
+        return 1
+
     audio, audio_ts = aud_file.format_audio()
     audio = audio[0, :].squeeze()  # use only the first audio channel
 
@@ -212,9 +221,9 @@ def main():
 
     for i in range(1 + WIND_WIDTH, len(vid_file.ts) - (1 + WIND_WIDTH)):
         # combine 3 frames
-        im0 = PIL.Image.open(io.BytesIO(vid_file.get_frame(i - 1)))
-        im1 = PIL.Image.open(io.BytesIO(vid_file.get_frame(i)))
-        im2 = PIL.Image.open(io.BytesIO(vid_file.get_frame(i + 1)))
+        im0 = PIL.Image.open(io.BytesIO(vid_file.get_frame(i - 1))).resize(FRAME_SZ)
+        im1 = PIL.Image.open(io.BytesIO(vid_file.get_frame(i))).resize(FRAME_SZ)
+        im2 = PIL.Image.open(io.BytesIO(vid_file.get_frame(i + 1))).resize(FRAME_SZ)
 
         res = PIL.Image.new("RGB", (FRAME_SZ[0] * 3, FRAME_SZ[1]))
         res.paste(im0, (0, 0))

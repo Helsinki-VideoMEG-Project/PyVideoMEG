@@ -199,6 +199,15 @@ def main():
     vid_file_2 = pyvideomeg.VideoData(args.video2)
     aud_file = pyvideomeg.AudioData(args.audio)
 
+    # Detect actual frame size from the first video
+    if len(vid_file_1.ts) > 0:
+        first_frame = PIL.Image.open(io.BytesIO(vid_file_1.get_frame(0)))
+        FRAME_SZ = first_frame.size
+        print(f"Detected frame size: {FRAME_SZ[0]}x{FRAME_SZ[1]}")
+    else:
+        print("Error: Video 1 has no frames.")
+        return 1
+
     audio, audio_ts = aud_file.format_audio()
     audio = audio[0, :].squeeze()  # use only the first audio channel
 
@@ -224,9 +233,9 @@ def main():
         #
 
         # paste 3 frames from the first video file
-        im0 = PIL.Image.open(io.BytesIO(vid_file_1.get_frame(i - 1)))
-        im1 = PIL.Image.open(io.BytesIO(vid_file_1.get_frame(i)))
-        im2 = PIL.Image.open(io.BytesIO(vid_file_1.get_frame(i + 1)))
+        im0 = PIL.Image.open(io.BytesIO(vid_file_1.get_frame(i - 1))).resize(FRAME_SZ)
+        im1 = PIL.Image.open(io.BytesIO(vid_file_1.get_frame(i))).resize(FRAME_SZ)
+        im2 = PIL.Image.open(io.BytesIO(vid_file_1.get_frame(i + 1))).resize(FRAME_SZ)
 
         res.paste(im0, (0, 0))
         res.paste(im1, (FRAME_SZ[0], 0))
@@ -241,9 +250,9 @@ def main():
         ]  # order the 3 frames
 
         # paste 3 frames from the second video file
-        im0 = PIL.Image.open(io.BytesIO(vid_file_2.get_frame(vid2_indx[0])))
-        im1 = PIL.Image.open(io.BytesIO(vid_file_2.get_frame(vid2_indx[1])))
-        im2 = PIL.Image.open(io.BytesIO(vid_file_2.get_frame(vid2_indx[2])))
+        im0 = PIL.Image.open(io.BytesIO(vid_file_2.get_frame(vid2_indx[0]))).resize(FRAME_SZ)
+        im1 = PIL.Image.open(io.BytesIO(vid_file_2.get_frame(vid2_indx[1]))).resize(FRAME_SZ)
+        im2 = PIL.Image.open(io.BytesIO(vid_file_2.get_frame(vid2_indx[2]))).resize(FRAME_SZ)
 
         res.paste(im0, (0, FRAME_SZ[1] + (FRAME_SZ[1] * 2 // 3)))
         res.paste(im1, (FRAME_SZ[0], FRAME_SZ[1] + (FRAME_SZ[1] * 2 // 3)))

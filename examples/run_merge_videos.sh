@@ -1,5 +1,7 @@
 #!/usr/bin/env zsh
 
+# Note: The following lines set up a specific Conda environment for the examples.
+# Please adjust or comment them out if you use a different environment manager.
 source "$HOME/miniforge3/etc/profile.d/conda.sh"
 conda activate pyvideomeg
 
