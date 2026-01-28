@@ -1,5 +1,6 @@
 # Docs
 docs/_build/
+docs/html/
 
 # Python
 __pycache__/
