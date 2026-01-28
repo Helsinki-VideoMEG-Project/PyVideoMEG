@@ -20,8 +20,9 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import sys
 import struct
+import sys
+
 import pyvideomeg
 
 
@@ -30,61 +31,66 @@ def main():
         vf = pyvideomeg.VideoData(sys.argv[1])
         is_audio = False
     except pyvideomeg.UnknownVersionError:
-        print('The file %s has unknown version' % sys.argv[1])
+        print("The file %s has unknown version" % sys.argv[1])
         sys.exit(1)
     except:
         try:
             af = pyvideomeg.AudioData(sys.argv[1])
             is_audio = True
         except pyvideomeg.UnknownVersionError:
-            print('The file %s has unknown version' % sys.argv[1])
+            print("The file %s has unknown version" % sys.argv[1])
             sys.exit(1)
         except:
-            print('The file %s seems to be neither video nor audio file' % sys.argv[1])
+            print("The file %s seems to be neither video nor audio file" % sys.argv[1])
             sys.exit(1)
 
     if is_audio:
         nsamples = len(af.raw_audio) / af.nchan / struct.calcsize(af.format_string)
-        wc_srate = (nsamples - (af.buf_sz/2/af.nchan)) * 1000. / (af.ts[-1] - af.ts[0])
+        wc_srate = (
+            (nsamples - (af.buf_sz / 2 / af.nchan)) * 1000.0 / (af.ts[-1] - af.ts[0])
+        )
 
-        print('\n\n\n')
-        print('Audio file.')
-        print('\tVersion: %i' % af.ver)
-        print('\tNominal sampling rate: %i' % af.srate)
-        print('\tWall clock sampling rate: %f' % wc_srate)
-        print('\tNumber of channels: %i' % af.nchan)
-        print('\tNumber of samples: %i' % nsamples)
-        print('\tTotal duration (estimated): %f seconds' % (nsamples / wc_srate))
-        print('\tBuffer size: %i frames' % (af.buf_sz / struct.calcsize(af.format_string) / af.nchan))
-        print('\tFirst buffer time: %s' % pyvideomeg.ts2str(af.ts[0]))
-        print('\tLast buffer time: %s' % pyvideomeg.ts2str(af.ts[-1]))
+        print("\n\n\n")
+        print("Audio file.")
+        print("\tVersion: %i" % af.ver)
+        print("\tNominal sampling rate: %i" % af.srate)
+        print("\tWall clock sampling rate: %f" % wc_srate)
+        print("\tNumber of channels: %i" % af.nchan)
+        print("\tNumber of samples: %i" % nsamples)
+        print("\tTotal duration (estimated): %f seconds" % (nsamples / wc_srate))
+        print(
+            "\tBuffer size: %i frames"
+            % (af.buf_sz / struct.calcsize(af.format_string) / af.nchan)
+        )
+        print("\tFirst buffer time: %s" % pyvideomeg.ts2str(af.ts[0]))
+        print("\tLast buffer time: %s" % pyvideomeg.ts2str(af.ts[-1]))
 
-        del(af)
+        del af
 
     else:
-        fps = (len(vf.ts)-1) * 1000. / (vf.ts[-1] - vf.ts[0])
+        fps = (len(vf.ts) - 1) * 1000.0 / (vf.ts[-1] - vf.ts[0])
 
-        print('\n\n\n')
-        print('Video file.')
-        print('\tVersion: %i' % vf.ver)
-        print('\tNumber of frames: %i' % len(vf.ts))
-        print('\tFPS: %f' % fps)
-        print('\tTotal duration (estimated): %f seconds' % (len(vf.ts) / fps))
-        print('\tFirst frame time: %s' % pyvideomeg.ts2str(vf.ts[0]))
-        print('\tLast frame time: %s' % pyvideomeg.ts2str(vf.ts[-1]))
+        print("\n\n\n")
+        print("Video file.")
+        print("\tVersion: %i" % vf.ver)
+        print("\tNumber of frames: %i" % len(vf.ts))
+        print("\tFPS: %f" % fps)
+        print("\tTotal duration (estimated): %f seconds" % (len(vf.ts) / fps))
+        print("\tFirst frame time: %s" % pyvideomeg.ts2str(vf.ts[0]))
+        print("\tLast frame time: %s" % pyvideomeg.ts2str(vf.ts[-1]))
 
         if vf.ver == 3:
-            print('\tSite ID: %i' % vf.site_id)
+            print("\tSite ID: %i" % vf.site_id)
 
             if vf.is_sender:
-                print('\tThe file was recorded by the *sender* process')
+                print("\tThe file was recorded by the *sender* process")
             else:
-                print('\tThe file was recorded by the *receiver* process')
+                print("\tThe file was recorded by the *receiver* process")
 
-        del(vf)
+        del vf
 
-    print('\n\n\n')
+    print("\n\n\n")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

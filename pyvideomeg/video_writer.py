@@ -1,26 +1,29 @@
 # -*- coding: utf-8 -*-
 """
-    Class-file for writing .video.dat files compatible with the Helsinki VideoMEG project.
+Class-file for writing .video.dat files compatible with the Helsinki VideoMEG project.
 
-    Copyright (C) 2017 BioMag Laboratory, Helsinki University Central Hospital
+Copyright (C) 2017 BioMag Laboratory, Helsinki University Central Hospital
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, version 3.
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, version 3.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
+
 from __future__ import print_function
 
-from os import path
 import struct
+from os import path
+
 import numpy
+
 from .read_data import UnknownVersionError
 
 __author__ = "Janne Holopainen"
@@ -28,10 +31,12 @@ __author__ = "Janne Holopainen"
 # TODO Rename video-writer to data_writer & Add EVL-writing.
 # TODO Write used amplification parameters to the evl-file.
 
+
 class OverWriteError(Exception):
     """
     Thrown if trying to overwrite previous file.
     """
+
     pass
 
 
@@ -43,21 +48,26 @@ class VideoFile(object):
     def __init__(self, file_name, ver, site_id=None, is_sender=None):
         if path.isfile(file_name):
             self._file = None
-            raise OverWriteError("Won't allow overwriting. File exists on path:\n" +
-                                 file_name)
+            raise OverWriteError(
+                "Won't allow overwriting. File exists on path:\n" + file_name
+            )
         else:
-            self._file = open(file_name, 'wb')
-            self._file.write(b'HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE')  # Magic string
+            self._file = open(file_name, "wb")
+            self._file.write(b"HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE")  # Magic string
 
             if ver == 1 or ver == 2:
-                self._file.write(struct.pack('I', ver))
+                self._file.write(struct.pack("I", ver))
                 self.site_id = -1
                 self.is_sender = -1
                 self.ver = ver
             elif ver == 3:
-                self._file.write(struct.pack('I', ver))
-                self._file.write(struct.pack('B', 0) if site_id is None else struct.pack('B', 1))
-                self._file.write(struct.pack('B', 0) if is_sender is None else struct.pack('B', 1))
+                self._file.write(struct.pack("I", ver))
+                self._file.write(
+                    struct.pack("B", 0) if site_id is None else struct.pack("B", 1)
+                )
+                self._file.write(
+                    struct.pack("B", 0) if is_sender is None else struct.pack("B", 1)
+                )
                 self.ver = ver
             else:
                 raise UnknownVersionError("Supported version numbers are: 1,2,3")
@@ -77,9 +87,9 @@ class VideoFile(object):
         self._file.seek(0, 2)
 
         if self.ver == 1:
-            self._file.write(struct.pack('QI', timestamp, len(frame)))
+            self._file.write(struct.pack("QI", timestamp, len(frame)))
         elif self.ver in [2, 3]:
-            self._file.write(struct.pack('QQI', timestamp, self._nframes, len(frame)))
+            self._file.write(struct.pack("QQI", timestamp, self._nframes, len(frame)))
         else:
             raise UnknownVersionError("Supported version numbers are: 1,2,3")
 

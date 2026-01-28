@@ -1,13 +1,14 @@
 """Wrapper functions for command-line scripts."""
 
-import sys
-import os
 import importlib.util
+import os
 
 
 def _load_script_main(script_name):
     """Load a script and return its main function."""
-    script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'bin', script_name + '.py')
+    script_path = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), "bin", script_name + ".py"
+    )
     spec = importlib.util.spec_from_file_location(script_name, script_path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -52,4 +53,3 @@ def pvm_merge_main():
 def pvm_export_main():
     """Entry point for pvm_export command."""
     _load_script_main("pvm_export")()
-

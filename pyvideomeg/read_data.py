@@ -1,23 +1,24 @@
 # -*- coding: utf-8 -*-
 """
-    Copyright (C) 2014 BioMag Laboratory, Helsinki University Central Hospital
+Copyright (C) 2014 BioMag Laboratory, Helsinki University Central Hospital
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, version 3.
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, version 3.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import math
 import struct
 import time
-import math
+
 import numpy
 
 _REGR_SEGM_LENGTH = 20  # seconds, should be integer
@@ -31,7 +32,7 @@ def _read_attrib(data_file, ver=None):
     """
     Read data block attributes. If cannot read the attributes (EOF?), return
     -1 in ts
-    
+
     For versions 0, 1: reads 12 bytes (timestamp + size), returns (ts, None, sz, total_sz)
     For versions 2, 3: reads 20 bytes (timestamp + block_id + size), returns (ts, block_id, sz, total_sz)
     """
@@ -39,7 +40,7 @@ def _read_attrib(data_file, ver=None):
         # Versions 0 and 1: timestamp (8 bytes) + size (4 bytes) = 12 bytes
         attrib = data_file.read(12)
         if len(attrib) == 12:
-            ts, sz = struct.unpack('QI', attrib)
+            ts, sz = struct.unpack("QI", attrib)
             total_sz = sz + 12
             return ts, None, sz, total_sz
         else:
@@ -48,21 +49,21 @@ def _read_attrib(data_file, ver=None):
         # Versions 2 and 3: timestamp (8 bytes) + block_id (8 bytes) + size (4 bytes) = 20 bytes
         attrib = data_file.read(20)
         if len(attrib) == 20:
-            ts, block_id, sz = struct.unpack('QQI', attrib)
+            ts, block_id, sz = struct.unpack("QQI", attrib)
             total_sz = sz + 20
             return ts, block_id, sz, total_sz
         else:
             return -1, None, -1, -1
-    
-    
+
+
 def ts2str(ts):
     """
     Convert timestamp to human-readable string. Slightly differs from the
     system tools that do the similar thing.
     """
     timestr = time.asctime(time.localtime(math.floor(ts / 1000)))
-    yearstr = timestr[-4:len(timestr)]
-    timestr = timestr[0:-5] + ('.%03i' % (ts % 1000)) + ' ' + yearstr
+    yearstr = timestr[-4 : len(timestr)]
+    timestr = timestr[0:-5] + (".%03i" % (ts % 1000)) + " " + yearstr
     return timestr
 
 
@@ -71,81 +72,87 @@ def repair_file(file_name, fixed_file_name):
     Try to repair a corrupted audio or video file. Assume that the corruption
     happened in the end of file, e.g. the file is valid until certain point
     """
-    with open(file_name, 'rb') as inp_file:
+    with open(file_name, "rb") as inp_file:
         is_audio = False
-        
+
         ##---------------------------------------------------------------------
         # Read the header
         #
-        
+
         # Check the magick string
-        if inp_file.read(len('HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE')) == b'HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE':
+        if (
+            inp_file.read(len("HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE"))
+            == b"HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE"
+        ):
             is_audio = True
-        else:        
+        else:
             inp_file.seek(0, 0)
-            assert(inp_file.read(len('HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE')) == b'HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE')
-        
+            assert (
+                inp_file.read(len("HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE"))
+                == b"HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE"
+            )
+
         # Read the file version
-        ver = struct.unpack('I', inp_file.read(4))[0]
+        ver = struct.unpack("I", inp_file.read(4))[0]
         if ver > 3:
-            raise UnknownVersionError()        
-            
+            raise UnknownVersionError()
+
         if ver == 3:
             # Read site_id and is_sender data
             id_sender_data = inp_file.read(2)
-            assert(len(id_sender_data) == 2)
+            assert len(id_sender_data) == 2
         else:
             id_sender_data = None
-            
+
         if is_audio:
             srate_nchan_data = inp_file.read(8)
-            assert(len(srate_nchan_data) == 8)
+            assert len(srate_nchan_data) == 8
             if ver == 0:
                 # Version 0 audio files have a format string (2 bytes) after srate_nchan_data
                 format_string_data = inp_file.read(2)
-                assert(len(format_string_data) == 2)
+                assert len(format_string_data) == 2
             else:
                 format_string_data = None
         else:
             srate_nchan_data = None
             format_string_data = None
-            
+
         # Get the file size
         begin_data = inp_file.tell()
         inp_file.seek(0, 2)
         end_data = inp_file.tell()
-        inp_file.seek(begin_data, 0)  
+        inp_file.seek(begin_data, 0)
 
         ##---------------------------------------------------------------------
         # Read the first chunk
-        # 
+        #
         ts, block_id, sz, total_sz = _read_attrib(inp_file, ver)
-        assert(ts != -1)
-        inp_file.seek(-(total_sz-sz), 1)
+        assert ts != -1
+        inp_file.seek(-(total_sz - sz), 1)
         buf = inp_file.read(total_sz)
-        assert(len(buf) == total_sz)
-            
+        assert len(buf) == total_sz
+
         ##---------------------------------------------------------------------
         # Recovered enough data, start writing the output file
         #
-        with open(fixed_file_name, 'wb') as out_file:
+        with open(fixed_file_name, "wb") as out_file:
             if is_audio:
-                out_file.write(b'HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE')
+                out_file.write(b"HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE")
             else:
-                out_file.write(b'HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE')
-                
-            out_file.write(struct.pack('I', ver))
-            
+                out_file.write(b"HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE")
+
+            out_file.write(struct.pack("I", ver))
+
             if ver == 3:
                 out_file.write(id_sender_data)
-                
+
             if is_audio:
                 out_file.write(srate_nchan_data)
                 if ver == 0:
                     out_file.write(format_string_data)
-                
+
             out_file.write(buf)
-                
+
             ##---------------------------------------------------------------------
             # Start copying the data
             #
@@ -153,15 +160,15 @@ def repair_file(file_name, fixed_file_name):
                 ts, block_id, sz, cur_total_sz = _read_attrib(inp_file, ver)
                 if ts == -1 or (is_audio and cur_total_sz != total_sz):
                     return
-                    
-                inp_file.seek(-(cur_total_sz-sz), 1)
+
+                inp_file.seek(-(cur_total_sz - sz), 1)
                 buf = inp_file.read(cur_total_sz)
                 if len(buf) != cur_total_sz:
                     return
-                    
+
                 out_file.write(buf)
-    
-    
+
+
 class AudioData:
     """
     To read an audio file initialize AudioData object with file name and get
@@ -173,93 +180,117 @@ class AudioData:
         format_string   - format string for the audio data
         buf_sz          - buffer size (bytes)
     """
+
     def __init__(self, file_name):
-        with open(file_name, 'rb') as data_file:
-            assert(data_file.read(len('HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE')) == b'HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE')  # make sure the magic string is OK 
-            self.ver = struct.unpack('I', data_file.read(4))[0]
-            
+        with open(file_name, "rb") as data_file:
+            assert (
+                data_file.read(len("HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE"))
+                == b"HELSINKI_VIDEO_MEG_PROJECT_AUDIO_FILE"
+            )  # make sure the magic string is OK
+            self.ver = struct.unpack("I", data_file.read(4))[0]
+
             if self.ver != 0:
                 # Can only read version 0 for the time being
                 raise UnknownVersionError()
-                
-            self.srate, self.nchan = struct.unpack('II', data_file.read(8))
-            self.format_string = data_file.read(2).decode('ascii').rstrip('\x00')
-            
+
+            self.srate, self.nchan = struct.unpack("II", data_file.read(8))
+            self.format_string = data_file.read(2).decode("ascii").rstrip("\x00")
+
             # get the size of the data part of the file
             begin_data = data_file.tell()
             data_file.seek(0, 2)
             end_data = data_file.tell()
             data_file.seek(begin_data, 0)
-            
+
             ts, _, self.buf_sz, total_sz = _read_attrib(data_file, 0)
             data_file.seek(begin_data, 0)
 
-            assert((end_data - begin_data) % total_sz == 0)
-            
-            n_chunks = (end_data - begin_data) // total_sz        
+            assert (end_data - begin_data) % total_sz == 0
+
+            n_chunks = (end_data - begin_data) // total_sz
             self.raw_audio = bytearray(n_chunks * self.buf_sz)
             self.ts = numpy.zeros(n_chunks)
 
             for i in range(n_chunks):
                 ts, _, sz, cur_total_sz = _read_attrib(data_file, 0)
-                assert(cur_total_sz == total_sz)
-                self.raw_audio[self.buf_sz*i : self.buf_sz*(i+1)] = data_file.read(sz)
+                assert cur_total_sz == total_sz
+                self.raw_audio[self.buf_sz * i : self.buf_sz * (i + 1)] = (
+                    data_file.read(sz)
+                )
                 self.ts[i] = ts
-        
+
     def format_audio(self):
         """Return the formatted version or self.raw_audio.
         Return:
             audio     - nchan-by-nsamp matrix of the audio data
             audio_ts  - timestamps for all the audio samples
-            
+
         Caution: this function consumes a lot of memory!
         """
-        #------------------------------------------------------------------
+        # ------------------------------------------------------------------
         # Compute timestamps for all the audio samples
         #
         bytes_per_sample = struct.calcsize(self.format_string)
         n_chunks = len(self.ts)
         samp_per_buf = self.buf_sz // (self.nchan * bytes_per_sample)
         nsamp = samp_per_buf * n_chunks
-        samps = numpy.arange(samp_per_buf-1, nsamp, samp_per_buf)
-        
+        samps = numpy.arange(samp_per_buf - 1, nsamp, samp_per_buf)
+
         errs = -numpy.ones(n_chunks)
         audio_ts = -numpy.ones(nsamp)
-        
+
         # split the data into segments for piecewise linear regression
         split_indx = list(range(0, nsamp, _REGR_SEGM_LENGTH * self.srate))
-        split_indx[-1] = nsamp  # the last segment might be up to twice as long as the others
-        
-        for i in range(len(split_indx)-1):
-            sel_indx = numpy.where((samps >= split_indx[i]) & (samps < split_indx[i+1]))                                # select one segment
-            p = numpy.polyfit(samps[sel_indx], self.ts[sel_indx], 1)                                                       # compute the regression coefficients
-            errs[sel_indx] = numpy.abs(numpy.polyval(p, samps[sel_indx]) - self.ts[sel_indx])                           # compute the regression error
-            audio_ts[split_indx[i] : split_indx[i+1]] = numpy.polyval(p, numpy.arange(split_indx[i], split_indx[i+1]))   # compute the timestamps with regression
+        split_indx[-1] = (
+            nsamp  # the last segment might be up to twice as long as the others
+        )
 
-        assert(audio_ts.min() >= 0) # make sure audio_ts was completely filled
-        assert(errs.min() >= 0)     # make sure errs was completely filled
-        print('AudioData: regression fit errors (abs): mean %f, median %f, max %f' % (errs.mean(), numpy.median(errs), errs.max()))
-        
-        #------------------------------------------------------------------
+        for i in range(len(split_indx) - 1):
+            sel_indx = numpy.where(
+                (samps >= split_indx[i]) & (samps < split_indx[i + 1])
+            )  # select one segment
+            p = numpy.polyfit(
+                samps[sel_indx], self.ts[sel_indx], 1
+            )  # compute the regression coefficients
+            errs[sel_indx] = numpy.abs(
+                numpy.polyval(p, samps[sel_indx]) - self.ts[sel_indx]
+            )  # compute the regression error
+            audio_ts[split_indx[i] : split_indx[i + 1]] = numpy.polyval(
+                p, numpy.arange(split_indx[i], split_indx[i + 1])
+            )  # compute the timestamps with regression
+
+        assert audio_ts.min() >= 0  # make sure audio_ts was completely filled
+        assert errs.min() >= 0  # make sure errs was completely filled
+        print(
+            "AudioData: regression fit errors (abs): mean %f, median %f, max %f"
+            % (errs.mean(), numpy.median(errs), errs.max())
+        )
+
+        # ------------------------------------------------------------------
         # Parse the raw audio data using numpy for efficiency
         #
         # Map format string to numpy dtype
         format_to_dtype = {
-            'b': numpy.int8, 'B': numpy.uint8,
-            'h': numpy.int16, 'H': numpy.uint16,
-            'i': numpy.int32, 'I': numpy.uint32,
-            'l': numpy.int32, 'L': numpy.uint32,
-            'f': numpy.float32, 'd': numpy.float64,
+            "b": numpy.int8,
+            "B": numpy.uint8,
+            "h": numpy.int16,
+            "H": numpy.uint16,
+            "i": numpy.int32,
+            "I": numpy.uint32,
+            "l": numpy.int32,
+            "L": numpy.uint32,
+            "f": numpy.float32,
+            "d": numpy.float64,
         }
-        clean_format = self.format_string.lstrip('<>=@!')
+        clean_format = self.format_string.lstrip("<>=@!")
         dtype = format_to_dtype.get(clean_format, numpy.int16)
-        
+
         # Convert raw audio to numpy array and reshape (interleaved -> nchan x nsamp)
         audio_flat = numpy.frombuffer(bytes(self.raw_audio), dtype=dtype)
         audio = audio_flat.reshape(-1, self.nchan).T.astype(numpy.float64)
-        
+
         return audio, audio_ts
-        
+
 
 class VideoData:
     """
@@ -267,16 +298,20 @@ class VideoData:
     then get the frame times from the object's ts variable. To get individual
     frames use get_frame function.
     """
+
     def __init__(self, file_name):
-        self._file = open(file_name, 'rb')
+        self._file = open(file_name, "rb")
         try:
-            assert(self._file.read(len('HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE')) == b'HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE')  # make sure the magic string is OK 
-            self.ver = struct.unpack('I', self._file.read(4))[0]
-            
-            if self.ver != 0:        
+            assert (
+                self._file.read(len("HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE"))
+                == b"HELSINKI_VIDEO_MEG_PROJECT_VIDEO_FILE"
+            )  # make sure the magic string is OK
+            self.ver = struct.unpack("I", self._file.read(4))[0]
+
+            if self.ver != 0:
                 # Can only read version 0 for the time being
                 raise UnknownVersionError()
-                
+
             # get the file size
             begin_data = self._file.tell()
             self._file.seek(0, 2)
@@ -287,44 +322,45 @@ class VideoData:
             ts_list = []
             self._frame_ptrs = []
 
-            while self._file.tell() < end_data:     # we did not reach end of file
+            while self._file.tell() < end_data:  # we did not reach end of file
                 ts, _, sz, total_sz = _read_attrib(self._file, 0)
-                assert(ts != -1)
+                assert ts != -1
                 ts_list.append(ts)
                 self._frame_ptrs.append((self._file.tell(), sz))
-                assert(self._file.tell() + sz <= end_data)
+                assert self._file.tell() + sz <= end_data
                 self._file.seek(sz, 1)
-            
+
             self.ts = numpy.array(ts_list)
             self.nframes = self.ts.size
         except:
             self._file.close()
             raise
-            
+
     def __del__(self):
-        if hasattr(self, '_file'):
+        if hasattr(self, "_file"):
             self._file.close()
-    
+
     def close(self):
         """Explicitly close the file handle."""
-        if hasattr(self, '_file') and self._file:
+        if hasattr(self, "_file") and self._file:
             self._file.close()
             self._file = None
-        
+
     def get_frame(self, indx):
         """
         Return indx-th frame a jpg image in the memory.
         """
         offset, sz = self._frame_ptrs[indx]
         self._file.seek(offset)
-        return(self._file.read(sz))
-        
+        return self._file.read(sz)
+
 
 class EvlData:
     """
     Event-list holding Event-class data.
     Can be read from a .evl file with from_file method
     """
+
     def __init__(self, source_file, events, start=0, end=0):
         self.source_file = source_file
         self._events = events
@@ -339,7 +375,7 @@ class EvlData:
         :return: EvlData-class
         """
         print("Using Evl file: {0}".format(file_name))
-        with open(file_name, 'r') as f:
+        with open(file_name, "r") as f:
             assert f.read(len("(videomeg::")) == "(videomeg::"
             source_file = ""
             events = []
@@ -356,10 +392,10 @@ class EvlData:
                         # Expect form ((:time xxx) (:class :"yyy") (:length zzz) (:annotation "www"))
                         stripped = line[3:-2]
                         pieced = stripped.split(") (")
-                        time = pieced[0].rpartition(' ')[2]
-                        _class = pieced[1].rpartition(':')[2]
-                        length = pieced[2].rpartition(' ')[2]
-                        annotation = pieced[3].partition(" \"")[2][:-2]
+                        time = pieced[0].rpartition(" ")[2]
+                        _class = pieced[1].rpartition(":")[2]
+                        length = pieced[2].rpartition(" ")[2]
+                        annotation = pieced[3].partition(' "')[2][:-2]
                         if annotation.lower() == "rec start":
                             rec_start = float(time)
                         elif annotation.lower() == "rec end":
@@ -367,7 +403,7 @@ class EvlData:
                         else:
                             events.append(Event(time, _class, length, annotation))
                 elif line.lstrip().startswith(":source-file"):
-                    source_file = line.partition(" \"")[2][:-1]
+                    source_file = line.partition(' "')[2][:-1]
                 elif line.lstrip().startswith(":events"):
                     read_events = True
             return cls(source_file, events, rec_start, rec_end)
@@ -387,6 +423,7 @@ class Event:
     Contains data from single event.
     Time is floating point.
     """
+
     def __init__(self, time, _class, length, annotation):
         self.time = float(time)
         self._class = _class
@@ -394,19 +431,34 @@ class Event:
         self.annotation = annotation
 
     def __str__(self):
-        return "Event start-time: " + str(self.time) + " and duration: " + str(self.duration)
+        return (
+            "Event start-time: "
+            + str(self.time)
+            + " and duration: "
+            + str(self.duration)
+        )
 
     def __repr__(self):
-        return ("Start-time: " + str(self.time) + "\nClass: " + self._class +
-                "\nLength: " + str(self.duration) + "\nAnnotation: " + self.annotation)
+        return (
+            "Start-time: "
+            + str(self.time)
+            + "\nClass: "
+            + self._class
+            + "\nLength: "
+            + str(self.duration)
+            + "\nAnnotation: "
+            + self.annotation
+        )
 
 
 class FifData:
     """
     Contains some data from .fif file.
     """
+
     def __init__(self, file_name, ch):
         import mne
+
         from pyvideomeg import comp_tstamps
 
         raw = mne.io.read_raw_fif(fname=file_name, allow_maxshield=True, verbose=50)
@@ -415,9 +467,9 @@ class FifData:
         self._file_name = file_name
         # Using uint_cast=True to resolve bug with Neuromag acquisition
         # See https://martinos.org/mne/stable/generated/mne.find_events.html
-        self.timestamps = comp_tstamps(timings, raw.info['sfreq'])
+        self.timestamps = comp_tstamps(timings, raw.info["sfreq"])
         self.start_time = self.timestamps[0]
-        self.sampling_freq = raw.info['sfreq']
+        self.sampling_freq = raw.info["sfreq"]
 
     def get_timestamps(self):
         """
